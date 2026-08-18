@@ -249,6 +249,13 @@ body::after{
 .sorov-status.kutilmoqda{background:rgba(251,191,36,.14);color:var(--warn)}
 .sorov-status.qabul{background:rgba(79,209,165,.14);color:var(--ok)}
 .sorov-status.rad{background:rgba(251,113,133,.14);color:var(--danger)}
+.req-note{font-size:11px;font-weight:700;margin-top:8px;padding:6px 10px;border-radius:9px;display:inline-block}
+.req-note.rejected{background:rgba(251,113,133,.12);color:var(--danger)}
+.xabarlar-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:11px 14px;margin-bottom:14px}
+.check-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-dim);cursor:pointer;user-select:none}
+.check-row input[type="checkbox"]{width:17px;height:17px;accent-color:var(--blue);cursor:pointer}
+.sorov-check{position:absolute;top:14px;right:14px;width:18px;height:18px;accent-color:var(--blue);cursor:pointer}
+.sorov-card{position:relative}
 </style>
 </head>
 <body>
@@ -319,7 +326,14 @@ body::after{
       </div>
 
       <div id="panelXabarlar" style="display:none">
-        <div class="section-title">Muddat so'rovlari</div>
+        <div class="section-title">Muddat va qaytarish so'rovlari</div>
+        <div class="xabarlar-toolbar" id="xabarlarToolbar" style="display:none">
+          <label class="check-row">
+            <input type="checkbox" id="xabarlarSelectAll">
+            <span>Hammasini belgilash</span>
+          </label>
+          <button class="big-btn ghost" id="xabarlarDeleteBtn" disabled style="width:auto;padding:9px 16px">🗑 O'chirish (<span id="xabarlarSelectedCount">0</span>)</button>
+        </div>
         <div id="xabarlarResults"></div>
       </div>
     </div>
@@ -573,8 +587,23 @@ function remainingLabel(d){
   }
   return { text, cls };
 }
-function hasPendingRequest(seria){
-  return sorovlar.some(r => normalize(r.seria) === normalize(seria) && (r.holat||'').toString().trim() === 'kutilmoqda');
+// So'rovlar (muddat/qaytarish) uchun umumiy yordamchi funksiyalar.
+// "turi" bo'yicha filtrlab, shu foydalanuvchi shu qurilma uchun yuborgan
+// ENG SO'NGGI so'rovni topadi (Sheets har doim oxiriga qo'shib boradi,
+// shuning uchun massivdagi oxirgi mos element = eng yangisi).
+function getLatestRequest(seria, turi){
+  const login = normalize(currentUser.login);
+  let latest = null;
+  for(const r of sorovlar){
+    if(normalize(r.seria) === normalize(seria) && (r.turi||'').toString().trim() === turi && normalize(r.login) === login){
+      latest = r;
+    }
+  }
+  return latest;
+}
+function hasPendingRequest(seria, turi){
+  const r = getLatestRequest(seria, turi);
+  return !!(r && (r.holat||'').toString().trim() === 'kutilmoqda');
 }
 
 // ============ FON REJIMIDAGI JARAYON KO'RSATKICHI ============
@@ -848,9 +877,34 @@ function renderMening(){
     const expired = deviceExpired(d);
     const rem = remainingLabel(d);
     const isOwner = normalize(d.login) === normalize(currentUser.login);
-    const installDisabled = expired;
-    const returnDisabled = expired && !isAdmin;
-    const pending = hasPendingRequest(d['S/N']);
+
+    // --- Muddat so'rovi holati (faqat egasiga ko'rinadi) ---
+    const latestMuddat = isOwner ? getLatestRequest(d['S/N'], 'muddat') : null;
+    const muddatPending = !!(latestMuddat && (latestMuddat.holat||'').trim() === 'kutilmoqda');
+    const muddatRejected = !!(latestMuddat && (latestMuddat.holat||'').trim() === 'rad etilgan');
+    let muddatBtnHtml = '';
+    if(isOwner){
+      const label = muddatPending ? "⏳ So'rov yuborilgan — kutilmoqda" : "🕐 Muddat so'rash";
+      muddatBtnHtml = `<button class="big-btn outline${muddatPending?' pending':''}" ${muddatPending?'disabled':''} onclick="openSorov('${encodeURIComponent(d['S/N'])}')">${label}</button>`;
+      if(muddatRejected){
+        muddatBtnHtml += `<div class="req-note rejected">✕ So'nggi muddat so'rovingiz rad etildi</div>`;
+      }
+    }
+
+    // --- Qaytarish: admin uchun bevosita amal, xodim uchun so'rov ---
+    const latestReturn = isOwner ? getLatestRequest(d['S/N'], 'qaytarish') : null;
+    const returnPending = !!(latestReturn && (latestReturn.holat||'').trim() === 'kutilmoqda');
+    const returnRejected = !!(latestReturn && (latestReturn.holat||'').trim() === 'rad etilgan');
+    const installDisabled = expired || returnPending;
+    let returnBtnDisabled, returnBtnLabel;
+    if(isAdmin){
+      returnBtnDisabled = false;
+      returnBtnLabel = '↩️ Qaytarish';
+    } else {
+      returnBtnDisabled = returnPending;
+      returnBtnLabel = returnPending ? "⏳ Qaytarish so'rovi yuborilgan" : '↩️ Qaytarish so\'rash';
+    }
+
     return `
     <div class="ticket ticket-vertical${expired?' expired':''}">
       <div class="ticket-main">
@@ -859,11 +913,12 @@ function renderMening(){
         ${isAdmin ? `<div class="ticket-sub">👤 Xodim: <b style="color:var(--text)">${escapeHtml(d.Ism||d.login||'')}</b></div>` : ''}
         <span class="ticket-tag">${tumanLabel(d.tuman)}</span>
         ${rem.text ? `<div class="countdown-line ${rem.cls}">${rem.text}</div>` : ''}
+        ${!isAdmin && returnRejected ? `<div class="req-note rejected">✕ So'nggi qaytarish so'rovingiz rad etildi</div>` : ''}
       </div>
       <div class="action-stack">
         <button class="big-btn primary" ${installDisabled?'disabled':''} onclick="openInstall('${encodeURIComponent(d['S/N'])}')">✅ O'rnatish</button>
-        <button class="big-btn ghost" ${returnDisabled?'disabled':''} onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">↩️ Qaytarish</button>
-        ${isOwner ? `<button class="big-btn outline${pending?' pending':''}" ${pending?'disabled':''} onclick="openSorov('${encodeURIComponent(d['S/N'])}')">${pending? "⏳ So'rov yuborilgan — kutilmoqda" : "🕐 Muddat so'rash"}</button>` : ''}
+        <button class="big-btn ghost" ${returnBtnDisabled?'disabled':''} onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">${returnBtnLabel}</button>
+        ${muddatBtnHtml}
       </div>
       <div style="height:14px"></div>
     </div>`;
@@ -886,9 +941,17 @@ document.getElementById('qaytarishConfirm').addEventListener('click', async ()=>
   if(!sabab){ toast('Sababni kiriting', 'error'); return; }
   const seria = qaytarishSeria;
   qaytarishOverlay.classList.remove('show');
+  const isAdmin = currentUser.role === 'admin';
   try{
-    await postAction({ action:'qaytarish', seria, login: currentUser.login, role: currentUser.role, sabab });
-    toast('Qurilma omborga qaytarildi', 'success');
+    if(isAdmin){
+      // Admin — tasdiqlovchining o'zi bo'lgani uchun bevosita qaytaradi.
+      await postAction({ action:'qaytarish', seria, login: currentUser.login, role: currentUser.role, sabab });
+      toast('Qurilma omborga qaytarildi', 'success');
+    } else {
+      // Oddiy xodim — endi faqat SO'ROV yuboradi, admin tasdiqlashi kerak.
+      await postAction({ action:'qaytarish_sorash', seria, login: currentUser.login, ism: currentUser.ism, tuman: currentUser.tuman, sabab });
+      toast("Qaytarish so'rovi adminga yuborildi", 'success');
+    }
     await loadAll(); renderActive(); updateStats();
   }catch(err){ toast(err.message, 'error'); }
 });
@@ -924,25 +987,45 @@ document.getElementById('sorovConfirm').addEventListener('click', async ()=>{
 });
 
 // ============ ADMIN: XABARLAR (SO'ROVLAR) ============
+let selectedSorovIds = new Set();
+
 function renderXabarlar(){
   const el = document.getElementById('xabarlarResults');
-  if(sorovlar.length === 0){ el.innerHTML = `<div class="empty-msg">Hozircha so'rovlar yo'q</div>`; return; }
-  const sorted = sorovlar.slice().sort((a,b)=>{
-    const pa = (a.holat||'')==='kutilmoqda' ? 0 : 1;
-    const pb = (b.holat||'')==='kutilmoqda' ? 0 : 1;
-    return pa - pb;
-  });
+  const toolbar = document.getElementById('xabarlarToolbar');
+  if(sorovlar.length === 0){
+    toolbar.style.display = 'none';
+    el.innerHTML = `<div class="empty-msg">Hozircha so'rovlar yo'q</div>`;
+    return;
+  }
+  toolbar.style.display = 'flex';
+  // Faqat hali mavjud bo'lgan so'rovlarga tegishli belgilarni saqlab qolamiz
+  // (o'chirilgan/eskirganlarini tozalaymiz).
+  const validIds = new Set(sorovlar.map(r=>r.ID));
+  selectedSorovIds.forEach(id=>{ if(!validIds.has(id)) selectedSorovIds.delete(id); });
+
+  // YANGI SO'ROVLAR TEPADA: Sheets har doim oxiriga qo'shib boradi, shuning
+  // uchun massivni teskari aylantirish — eng yangisini birinchi qiladi.
+  const sorted = sorovlar.slice().reverse();
+
   el.innerHTML = sorted.map(r=>{
     const holat = (r.holat||'').toString().trim();
     const isPending = holat === 'kutilmoqda';
     const statusCls = holat==='kutilmoqda' ? 'kutilmoqda' : (holat==='qabul qilingan' ? 'qabul' : 'rad');
+    const turi = (r.turi||'muddat').toString().trim();
+    const isMuddat = turi === 'muddat';
+    const checked = selectedSorovIds.has(r.ID) ? 'checked' : '';
+    const detailLine = isMuddat
+      ? `So'ralgan: <b style="color:var(--text)">${escapeHtml(r.soat||'')} soat</b>`
+      : `Sabab: <b style="color:var(--text)">${escapeHtml(r.sabab||'')}</b>`;
     return `
     <div class="sorov-card${isPending?' pending':''}">
+      <input type="checkbox" class="sorov-check" data-id="${escapeHtml(r.ID)}" ${checked} onchange="toggleSorovSelect('${encodeURIComponent(r.ID)}', this.checked)">
       <div class="sorov-row">
         <div>
+          <div class="ticket-tag" style="margin:0 0 6px 0">${isMuddat ? '🕐 Muddat so\'rovi' : '↩️ Qaytarish so\'rovi'}</div>
           <div class="ticket-code" style="font-size:14px"><span class="bar">${barcodeSpans(6)}</span>${escapeHtml(r.seria||'')}</div>
           <div class="ticket-sub">👤 ${escapeHtml(r.Ism||r.login||'')} · ${tumanLabel(r.tuman)}</div>
-          <div class="ticket-sub">So'ralgan: <b style="color:var(--text)">${escapeHtml(r.soat||'')} soat</b> · ${escapeHtml(r.vaqt||'')}</div>
+          <div class="ticket-sub">${detailLine} · ${escapeHtml(r.vaqt||'')}</div>
         </div>
       </div>
       <span class="sorov-status ${statusCls}">${holat==='kutilmoqda'?'Kutilmoqda':holat==='qabul qilingan'?'Qabul qilingan':'Rad etilgan'}</span>
@@ -953,12 +1036,48 @@ function renderXabarlar(){
       </div>` : ''}
     </div>`;
   }).join('');
+
+  updateXabarlarToolbar();
 }
+
+function updateXabarlarToolbar(){
+  const countEl = document.getElementById('xabarlarSelectedCount');
+  const delBtn = document.getElementById('xabarlarDeleteBtn');
+  const selectAll = document.getElementById('xabarlarSelectAll');
+  countEl.textContent = selectedSorovIds.size;
+  delBtn.disabled = selectedSorovIds.size === 0;
+  selectAll.checked = sorovlar.length > 0 && selectedSorovIds.size === sorovlar.length;
+}
+
+function toggleSorovSelect(idEnc, checked){
+  const id = decodeURIComponent(idEnc);
+  if(checked) selectedSorovIds.add(id); else selectedSorovIds.delete(id);
+  updateXabarlarToolbar();
+}
+window.toggleSorovSelect = toggleSorovSelect;
+
+document.getElementById('xabarlarSelectAll').addEventListener('change', (e)=>{
+  if(e.target.checked){ sorovlar.forEach(r=>selectedSorovIds.add(r.ID)); }
+  else { selectedSorovIds.clear(); }
+  renderXabarlar();
+});
+
+document.getElementById('xabarlarDeleteBtn').addEventListener('click', async ()=>{
+  if(selectedSorovIds.size === 0) return;
+  const ids = Array.from(selectedSorovIds);
+  try{
+    await postAction({ action:'sorov_ochirish', ids, role: currentUser.role });
+    toast("Belgilangan xabarlar o'chirildi", 'success');
+    selectedSorovIds.clear();
+    await loadAll(); renderActive(); updateStats();
+  }catch(err){ toast(err.message, 'error'); }
+});
+
 async function sorovQabul(idEnc){
   const id = decodeURIComponent(idEnc);
   try{
     await postAction({ action:'sorov_qabul', id, role: currentUser.role });
-    toast('Muddat uzaytirildi', 'success');
+    toast('So\'rov qabul qilindi', 'success');
     await loadAll(); renderActive(); updateStats();
   }catch(err){ toast(err.message, 'error'); }
 }
