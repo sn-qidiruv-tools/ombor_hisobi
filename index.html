@@ -1271,10 +1271,11 @@ tarixSearchClear.addEventListener('click', ()=>{ tarixSearch.value=''; tarixSear
 
 function renderTarix(){
   const q = normalize(tarixSearch.value.trim());
-  let list = chiqim.filter(d => normalize(d.login) === normalize(currentUser.login)).slice().reverse();
+  const isAdmin = currentUser.role === 'admin';
+  let list = (isAdmin ? chiqim.slice() : chiqim.filter(d => normalize(d.login) === normalize(currentUser.login))).reverse();
   if(q.length >= 2) list = list.filter(d => normalize(d['S/N']).includes(q));
   const el = document.getElementById('tarixResults');
-  if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${q ? "Topilmadi" : "Siz hali hech narsa o'rnatmagansiz"}</div>`; return; }
+  if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${q ? "Topilmadi" : (isAdmin ? "Hali hech qanday qurilma o'rnatilmagan" : "Siz hali hech narsa o'rnatmagansiz")}</div>`; return; }
   el.innerHTML = list.slice(0,150).map(d => `
     <div class="ticket">
       <div class="ticket-main">
