@@ -297,11 +297,6 @@ body::after{
 
       <div id="panelSklad">
         <div class="section-title">Omborda mavjud qurilmalar</div>
-        <div class="tuman-toggle" id="skladTumanToggle">
-          <button class="tuman-btn active" data-t="all">Barchasi</button>
-          <button class="tuman-btn" data-t="buxoro">Buxoro</button>
-          <button class="tuman-btn" data-t="kogon">Kogon</button>
-        </div>
         <div class="search-box">
           <span class="search-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
           <input type="text" id="skladSearch" placeholder="S/N bo'yicha qidirish...">
@@ -422,7 +417,7 @@ body::after{
   <div class="modal">
     <h2 id="olishTitle">Qurilmani olish</h2>
     <p class="modal-sub">Manzil, muddat va talabnoma hujjatini kiriting</p>
-    <div class="field"><label>Manzil</label><input type="text" id="olishManzil" placeholder="Masalan: ombor filiali / tashkilot"></div>
+    <div class="field"><label>Manzil</label><input type="text" id="olishManzil" placeholder="Masalan: Amir temur ko'chasi 2- uy"></div>
     <div class="field">
       <label>Muddat (shu vaqt tugagach qurilma "muddati o'tgan" bo'ladi)</label>
       <div class="duration-grid" id="olishDurationGrid">
@@ -806,9 +801,6 @@ skladFilterOverlay.addEventListener('click', e=>{ if(e.target===skladFilterOverl
 document.getElementById('filterApply').addEventListener('click', ()=>{
   skladMarkaFilter = document.getElementById('filterMarka').value;
   skladTumanFilter = document.getElementById('filterTuman').value;
-  document.querySelectorAll('#skladTumanToggle .tuman-btn').forEach(b=>{
-    b.classList.toggle('active', b.dataset.t === skladTumanFilter);
-  });
   skladFilterOverlay.classList.remove('show');
   renderSklad();
 });
@@ -817,9 +809,6 @@ document.getElementById('filterReset').addEventListener('click', ()=>{
   skladTumanFilter = 'all';
   document.getElementById('filterMarka').value = '';
   document.getElementById('filterTuman').value = 'all';
-  document.querySelectorAll('#skladTumanToggle .tuman-btn').forEach(b=>{
-    b.classList.toggle('active', b.dataset.t === 'all');
-  });
   skladFilterOverlay.classList.remove('show');
   renderSklad();
 });
@@ -843,15 +832,6 @@ function showPanel(name){
 }
 Object.keys(navBtns).forEach(name=> navBtns[name].addEventListener('click', ()=>showPanel(name)));
 
-document.querySelectorAll('#skladTumanToggle .tuman-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('#skladTumanToggle .tuman-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    skladTumanFilter = btn.dataset.t;
-    document.getElementById('filterTuman').value = skladTumanFilter;
-    renderSklad();
-  });
-});
 const skladSearch = document.getElementById('skladSearch');
 const skladSearchClear = document.getElementById('skladSearchClear');
 skladSearch.addEventListener('input', ()=>{ skladSearchClear.style.display = skladSearch.value?'flex':'none'; renderSklad(); });
@@ -985,6 +965,7 @@ function renderMening(){
       <div class="ticket-main">
         <div class="ticket-code"><span class="bar">${barcodeSpans(8)}</span>${escapeHtml(d['S/N']||'')}</div>
         <div class="ticket-sub">${escapeHtml(d.marka||'')} · Olingan: ${escapeHtml(d.sana||'')}</div>
+        ${d.manzil ? `<div class="ticket-sub">📍 ${escapeHtml(d.manzil)}</div>` : ''}
         ${isAdmin ? `<div class="ticket-sub">👤 Xodim: <b style="color:var(--text)">${escapeHtml(d.Ism||d.login||'')}</b></div>` : ''}
         <span class="ticket-tag">${tumanLabel(d.tuman)}</span>
         ${deadlineLabel(d) ? `<div class="ticket-sub mono">${deadlineLabel(d)}</div>` : ''}
@@ -1028,7 +1009,6 @@ document.getElementById('qaytarishConfirm').addEventListener('click', ()=>{
       .catch(err=>{ toast(err.message, 'error'); })
       .finally(()=>{ bgTaskEnd(); loadAll().then(()=>{ renderActive(); updateStats(); }); });
   } else {
-    toast("Qaytarish so'rovi yuborilmoqda...", 'success');
     bgTaskStart("So'rov yuborilmoqda: " + seria);
     postAction({ action:'qaytarish_sorash', seria, login: currentUser.login, ism: currentUser.ism, tuman: currentUser.tuman, sabab })
       .then(()=>{ toast("Qaytarish so'rovi adminga yuborildi", 'success'); })
@@ -1062,7 +1042,6 @@ document.getElementById('sorovConfirm').addEventListener('click', ()=>{
   sorovOverlay.classList.remove('show');
 
   // Tugma darhol bosiladi, so'rov fon rejimida yuboriladi.
-  toast("So'rov yuborilmoqda...", 'success');
   bgTaskStart("Muddat so'rovi yuborilmoqda: " + seria);
   postAction({ action:'muddat_sorash', seria, login: currentUser.login, ism: currentUser.ism, tuman: currentUser.tuman, soat })
     .then(()=>{ toast("So'rov adminga yuborildi", 'success'); })
