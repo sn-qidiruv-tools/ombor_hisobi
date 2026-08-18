@@ -161,6 +161,7 @@ body::after{
 .big-btn.ghost{background:var(--surface-2);color:var(--danger);border:1px solid rgba(251,113,133,.3)}
 .big-btn.outline{background:transparent;color:var(--warn);border:1.5px dashed rgba(251,191,36,.45)}
 .big-btn.outline.pending{color:var(--text-dim);border-style:solid;border-color:var(--border)}
+.big-btn.compact{width:auto;align-self:flex-start;padding:8px 14px;font-size:12.5px;border-radius:9px;gap:6px}
 
 .countdown-line{font-family:var(--mono);font-size:13px;font-weight:700;margin-top:10px;padding:7px 11px;border-radius:10px;background:var(--surface-2);display:inline-block}
 .countdown-line.ok{color:var(--ok)}
@@ -413,6 +414,25 @@ body::after{
   </div>
 </div>
 
+<div class="overlay" id="faollashtirishOverlay">
+  <div class="modal">
+    <h2>Qurilmani faollashtirish</h2>
+    <p class="modal-sub">Muddati tugagan qurilmaga yangi muddat belgilang — qurilma xodimning qo'lida qoladi</p>
+    <div class="field">
+      <label>Yangi muddat</label>
+      <div class="duration-grid" id="faollashtirishDurationGrid">
+        <button type="button" class="duration-btn" data-hours="24">1 kun<span class="d-sub">24 soat</span></button>
+        <button type="button" class="duration-btn" data-hours="48">2 kun<span class="d-sub">48 soat</span></button>
+        <button type="button" class="duration-btn" data-hours="72">3 kun<span class="d-sub">72 soat</span></button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="faollashtirishCancel">Bekor qilish</button>
+      <button class="btn" id="faollashtirishConfirm">Faollashtirish</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="olishOverlay">
   <div class="modal">
     <h2 id="olishTitle">Qurilmani olish</h2>
@@ -425,7 +445,7 @@ body::after{
         <button type="button" class="duration-btn" data-hours="48">2 kun<span class="d-sub">48 soat</span></button>
         <button type="button" class="duration-btn" data-hours="72">3 kun<span class="d-sub">72 soat</span></button>
       </div>
-      <button type="button" class="duration-btn" id="testDurationBtn" data-hours="0.0333333333" style="width:100%;margin-top:8px;border-style:dashed;color:var(--warn)">🧪 Test: 2 daqiqa <span class="d-sub" style="color:var(--warn)">faqat sinov uchun</span></button>
+      <button type="button" class="duration-btn" id="testDurationBtn" data-hours="0.1666666667" style="width:100%;margin-top:8px;border-style:dashed;color:var(--warn)">🧪 Test: 10 daqiqa <span class="d-sub" style="color:var(--warn)">faqat sinov uchun</span></button>
     </div>
     <div class="field">
       <label>Talabnomani yukla</label>
@@ -748,10 +768,10 @@ function enterApp(){
   renderActive();
   updateStats();
   loadAll().then(()=>{ renderActive(); updateStats(); });
-  // Muddat hisoblagichini har daqiqada yangilab turamiz.
+  // Muddat hisoblagichini har 10 soniyada yangilab turamiz (test uchun ham qulay).
   setInterval(()=>{
     if(activePanel === 'mening') renderMening();
-  }, 60000);
+  }, 10000);
 }
 
 async function refreshData(){
@@ -940,8 +960,8 @@ function renderMening(){
     const muddatRejected = !!(latestMuddat && (latestMuddat.holat||'').trim() === 'rad etilgan');
     let muddatBtnHtml = '';
     if(isOwner){
-      const label = muddatPending ? "⏳ So'rov yuborilgan — kutilmoqda" : "🕐 Muddat so'rash";
-      muddatBtnHtml = `<button class="big-btn outline${muddatPending?' pending':''}" ${muddatPending?'disabled':''} onclick="openSorov('${encodeURIComponent(d['S/N'])}')">${label}</button>`;
+      const label = muddatPending ? "⏳ Kutilmoqda" : "🕐 Muddat so'rash";
+      muddatBtnHtml = `<button class="big-btn outline compact${muddatPending?' pending':''}" ${muddatPending?'disabled':''} onclick="openSorov('${encodeURIComponent(d['S/N'])}')">${label}</button>`;
       if(muddatRejected){
         muddatBtnHtml += `<div class="req-note rejected">✕ So'nggi muddat so'rovingiz rad etildi</div>`;
       }
@@ -961,6 +981,22 @@ function renderMening(){
       returnBtnLabel = returnPending ? "⏳ Qaytarish so'rovi yuborilgan" : '↩️ Qaytarish so\'rash';
     }
 
+    // --- Muddati tugagan holat: xodim uchun barcha amallar bloklanadi,
+    // faqat admin "Faollashtirish" yoki "Qaytarish" qila oladi ---
+    let actionsHtml;
+    if(expired && !isAdmin){
+      actionsHtml = `<div class="req-note rejected" style="margin-top:0">⛔ Muddat tugadi — hech qanday amal bajara olmaysiz, admin bilan bog'laning</div>`;
+    } else if(expired && isAdmin){
+      actionsHtml = `
+        <button class="big-btn primary" onclick="openFaollashtirish('${encodeURIComponent(d['S/N'])}')">🔓 Faollashtirish</button>
+        <button class="big-btn ghost" onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">↩️ Qaytarish</button>`;
+    } else {
+      actionsHtml = `
+        <button class="big-btn primary" ${installDisabled?'disabled':''} onclick="openInstall('${encodeURIComponent(d['S/N'])}')">✅ O'rnatish</button>
+        <button class="big-btn ghost" ${returnBtnDisabled?'disabled':''} onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">${returnBtnLabel}</button>
+        ${muddatBtnHtml}`;
+    }
+
     return `
     <div class="ticket ticket-vertical${expired?' expired':''}">
       <div class="ticket-main">
@@ -974,9 +1010,7 @@ function renderMening(){
         ${!isAdmin && returnRejected ? `<div class="req-note rejected">✕ So'nggi qaytarish so'rovingiz rad etildi</div>` : ''}
       </div>
       <div class="action-stack">
-        <button class="big-btn primary" ${installDisabled?'disabled':''} onclick="openInstall('${encodeURIComponent(d['S/N'])}')">✅ O'rnatish</button>
-        <button class="big-btn ghost" ${returnBtnDisabled?'disabled':''} onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">${returnBtnLabel}</button>
-        ${muddatBtnHtml}
+        ${actionsHtml}
       </div>
       <div style="height:14px"></div>
     </div>`;
@@ -993,6 +1027,37 @@ function qaytarish(seriaEnc){
 window.qaytarish = qaytarish;
 document.getElementById('qaytarishCancel').addEventListener('click', ()=> qaytarishOverlay.classList.remove('show'));
 qaytarishOverlay.addEventListener('click', e=>{ if(e.target===qaytarishOverlay) qaytarishOverlay.classList.remove('show'); });
+
+// ============ FAOLLASHTIRISH (admin, muddati o'tgan qurilmaga yangi muddat) ============
+let faollashtirishSeria = null;
+let faollashtirishMuddatSoat = null;
+const faollashtirishOverlay = document.getElementById('faollashtirishOverlay');
+function openFaollashtirish(seriaEnc){
+  faollashtirishSeria = decodeURIComponent(seriaEnc);
+  faollashtirishMuddatSoat = null;
+  document.querySelectorAll('#faollashtirishDurationGrid .duration-btn').forEach(b=>b.classList.remove('active'));
+  faollashtirishOverlay.classList.add('show');
+}
+window.openFaollashtirish = openFaollashtirish;
+document.getElementById('faollashtirishCancel').addEventListener('click', ()=> faollashtirishOverlay.classList.remove('show'));
+faollashtirishOverlay.addEventListener('click', e=>{ if(e.target===faollashtirishOverlay) faollashtirishOverlay.classList.remove('show'); });
+document.querySelectorAll('#faollashtirishDurationGrid .duration-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#faollashtirishDurationGrid .duration-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    faollashtirishMuddatSoat = btn.dataset.hours;
+  });
+});
+document.getElementById('faollashtirishConfirm').addEventListener('click', ()=>{
+  if(!faollashtirishMuddatSoat){ toast('Muddatni tanlang', 'error'); return; }
+  const seria = faollashtirishSeria, muddat_soat = faollashtirishMuddatSoat;
+  faollashtirishOverlay.classList.remove('show');
+  bgTaskStart('Faollashtirilmoqda: ' + seria);
+  postAction({ action:'faollashtirish', seria, muddat_soat, role: currentUser.role, login: currentUser.login })
+    .then(()=>{ toast('Qurilma faollashtirildi — yangi muddat belgilandi', 'success'); })
+    .catch(err=>{ toast(err.message, 'error'); })
+    .finally(()=>{ bgTaskEnd(); loadAll().then(()=>{ renderActive(); updateStats(); }); });
+});
 
 document.getElementById('qaytarishConfirm').addEventListener('click', ()=>{
   const sabab = document.getElementById('qaytarishSabab').value.trim();
