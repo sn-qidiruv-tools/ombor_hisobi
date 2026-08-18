@@ -306,6 +306,10 @@ body::after{
           <span class="search-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
           <input type="text" id="skladSearch" placeholder="S/N bo'yicha qidirish...">
           <button class="search-clear" id="skladSearchClear">✕</button>
+          <button class="icon-btn" id="skladFilterBtn" title="Filter" style="flex-shrink:0;position:relative">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+            <span id="skladFilterDot" style="display:none;position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--cyan)"></span>
+          </button>
         </div>
         <div id="skladResults"></div>
       </div>
@@ -385,6 +389,31 @@ body::after{
     <div class="modal-actions">
       <button class="btn btn-secondary" id="addCancel">Bekor qilish</button>
       <button class="btn" id="addConfirm">Qo'shish</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="skladFilterOverlay">
+  <div class="modal">
+    <h2>Filter</h2>
+    <p class="modal-sub">Marka va tuman bo'yicha filterlash</p>
+    <div class="field">
+      <label>Marka</label>
+      <select id="filterMarka">
+        <option value="">Barcha markalar</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Tuman</label>
+      <select id="filterTuman">
+        <option value="all">Barchasi</option>
+        <option value="buxoro">Buxoro</option>
+        <option value="kogon">Kogon</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="filterReset">Tozalash</button>
+      <button class="btn" id="filterApply">Qo'llash</button>
     </div>
   </div>
 </div>
@@ -517,6 +546,7 @@ const BOOTSTRAP_URL = APPS_SCRIPT_URL + "?action=bootstrap";
 let employees = [], sklad = [], kirim = [], chiqim = [], sorovlar = [];
 let currentUser = null;
 let skladTumanFilter = 'all';
+let skladMarkaFilter = '';
 
 function normalize(s){ return (s||'').toString().trim().toLowerCase(); }
 function normalizeTuman(raw){
@@ -586,6 +616,16 @@ function remainingLabel(d){
     text = '⏳ Qoldi: ' + hrs + ' soat ' + mins + ' daqiqa';
   }
   return { text, cls };
+}
+function pad2_(n){ return String(n).padStart(2,'0'); }
+function deadlineLabel(d){
+  if(!d.OlinganVaqt || !d.MuddatSoat) return '';
+  const start = new Date(d.OlinganVaqt).getTime();
+  if(isNaN(start)) return '';
+  const deadline = new Date(start + Number(d.MuddatSoat) * 3600 * 1000);
+  const str = pad2_(deadline.getDate()) + '.' + pad2_(deadline.getMonth()+1) + '.' + deadline.getFullYear() +
+    ' ' + pad2_(deadline.getHours()) + ':' + pad2_(deadline.getMinutes());
+  return 'Tugash vaqti: ' + str;
 }
 // So'rovlar (muddat/qaytarish) uchun umumiy yordamchi funksiyalar.
 // "turi" bo'yicha filtrlab, shu foydalanuvchi shu qurilma uchun yuborgan
@@ -752,6 +792,38 @@ const navBtns = {
 };
 let activePanel = 'sklad';
 
+// ============ SKLAD FILTER (marka + tuman) ============
+const skladFilterOverlay = document.getElementById('skladFilterOverlay');
+document.getElementById('skladFilterBtn').addEventListener('click', ()=>{
+  const markaSel = document.getElementById('filterMarka');
+  const uniqueMarkalar = Array.from(new Set(sklad.map(d => (d.marka||'').toString().trim()).filter(Boolean))).sort();
+  markaSel.innerHTML = '<option value="">Barcha markalar</option>' +
+    uniqueMarkalar.map(m => `<option value="${escapeHtml(m)}"${m===skladMarkaFilter?' selected':''}>${escapeHtml(m)}</option>`).join('');
+  document.getElementById('filterTuman').value = skladTumanFilter;
+  skladFilterOverlay.classList.add('show');
+});
+skladFilterOverlay.addEventListener('click', e=>{ if(e.target===skladFilterOverlay) skladFilterOverlay.classList.remove('show'); });
+document.getElementById('filterApply').addEventListener('click', ()=>{
+  skladMarkaFilter = document.getElementById('filterMarka').value;
+  skladTumanFilter = document.getElementById('filterTuman').value;
+  document.querySelectorAll('#skladTumanToggle .tuman-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.t === skladTumanFilter);
+  });
+  skladFilterOverlay.classList.remove('show');
+  renderSklad();
+});
+document.getElementById('filterReset').addEventListener('click', ()=>{
+  skladMarkaFilter = '';
+  skladTumanFilter = 'all';
+  document.getElementById('filterMarka').value = '';
+  document.getElementById('filterTuman').value = 'all';
+  document.querySelectorAll('#skladTumanToggle .tuman-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.t === 'all');
+  });
+  skladFilterOverlay.classList.remove('show');
+  renderSklad();
+});
+
 function renderActive(){
   if(activePanel==='sklad') renderSklad();
   else if(activePanel==='mening') renderMening();
@@ -776,6 +848,7 @@ document.querySelectorAll('#skladTumanToggle .tuman-btn').forEach(btn=>{
     document.querySelectorAll('#skladTumanToggle .tuman-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     skladTumanFilter = btn.dataset.t;
+    document.getElementById('filterTuman').value = skladTumanFilter;
     renderSklad();
   });
 });
@@ -788,7 +861,9 @@ function renderSklad(){
   const q = normalize(skladSearch.value.trim());
   let list = sklad.slice();
   if(skladTumanFilter !== 'all') list = list.filter(d => normalizeTuman(d.tuman) === skladTumanFilter);
+  if(skladMarkaFilter) list = list.filter(d => normalize(d.marka) === normalize(skladMarkaFilter));
   if(q.length >= 2) list = list.filter(d => normalize(d['S/N']).includes(q));
+  document.getElementById('skladFilterDot').style.display = skladMarkaFilter ? 'block' : 'none';
   const el = document.getElementById('skladResults');
   if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${q ? "Hech narsa topilmadi" : "Skladda qurilma yo'q"}</div>`; return; }
   const isAdmin = currentUser.role === 'admin';
@@ -912,6 +987,7 @@ function renderMening(){
         <div class="ticket-sub">${escapeHtml(d.marka||'')} · Olingan: ${escapeHtml(d.sana||'')}</div>
         ${isAdmin ? `<div class="ticket-sub">👤 Xodim: <b style="color:var(--text)">${escapeHtml(d.Ism||d.login||'')}</b></div>` : ''}
         <span class="ticket-tag">${tumanLabel(d.tuman)}</span>
+        ${deadlineLabel(d) ? `<div class="ticket-sub mono">${deadlineLabel(d)}</div>` : ''}
         ${rem.text ? `<div class="countdown-line ${rem.cls}">${rem.text}</div>` : ''}
         ${!isAdmin && returnRejected ? `<div class="req-note rejected">✕ So'nggi qaytarish so'rovingiz rad etildi</div>` : ''}
       </div>
@@ -936,24 +1012,29 @@ window.qaytarish = qaytarish;
 document.getElementById('qaytarishCancel').addEventListener('click', ()=> qaytarishOverlay.classList.remove('show'));
 qaytarishOverlay.addEventListener('click', e=>{ if(e.target===qaytarishOverlay) qaytarishOverlay.classList.remove('show'); });
 
-document.getElementById('qaytarishConfirm').addEventListener('click', async ()=>{
+document.getElementById('qaytarishConfirm').addEventListener('click', ()=>{
   const sabab = document.getElementById('qaytarishSabab').value.trim();
   if(!sabab){ toast('Sababni kiriting', 'error'); return; }
   const seria = qaytarishSeria;
   qaytarishOverlay.classList.remove('show');
   const isAdmin = currentUser.role === 'admin';
-  try{
-    if(isAdmin){
-      // Admin — tasdiqlovchining o'zi bo'lgani uchun bevosita qaytaradi.
-      await postAction({ action:'qaytarish', seria, login: currentUser.login, role: currentUser.role, sabab });
-      toast('Qurilma omborga qaytarildi', 'success');
-    } else {
-      // Oddiy xodim — endi faqat SO'ROV yuboradi, admin tasdiqlashi kerak.
-      await postAction({ action:'qaytarish_sorash', seria, login: currentUser.login, ism: currentUser.ism, tuman: currentUser.tuman, sabab });
-      toast("Qaytarish so'rovi adminga yuborildi", 'success');
-    }
-    await loadAll(); renderActive(); updateStats();
-  }catch(err){ toast(err.message, 'error'); }
+
+  // Tugma darhol bosiladi, so'rov fon rejimida (background) yuboriladi —
+  // foydalanuvchi kutib turishi shart emas.
+  if(isAdmin){
+    bgTaskStart('Omborga qaytarilmoqda: ' + seria);
+    postAction({ action:'qaytarish', seria, login: currentUser.login, role: currentUser.role, sabab })
+      .then(()=>{ toast('Qurilma omborga qaytarildi', 'success'); })
+      .catch(err=>{ toast(err.message, 'error'); })
+      .finally(()=>{ bgTaskEnd(); loadAll().then(()=>{ renderActive(); updateStats(); }); });
+  } else {
+    toast("Qaytarish so'rovi yuborilmoqda...", 'success');
+    bgTaskStart("So'rov yuborilmoqda: " + seria);
+    postAction({ action:'qaytarish_sorash', seria, login: currentUser.login, ism: currentUser.ism, tuman: currentUser.tuman, sabab })
+      .then(()=>{ toast("Qaytarish so'rovi adminga yuborildi", 'success'); })
+      .catch(err=>{ toast(err.message, 'error'); })
+      .finally(()=>{ bgTaskEnd(); loadAll().then(()=>{ renderActive(); updateStats(); }); });
+  }
 });
 
 // ============ MUDDAT SO'RASH ============
@@ -975,15 +1056,18 @@ document.querySelectorAll('#sorovDurationGrid .duration-btn').forEach(btn=>{
 });
 document.getElementById('sorovCancel').addEventListener('click', ()=> sorovOverlay.classList.remove('show'));
 sorovOverlay.addEventListener('click', e=>{ if(e.target===sorovOverlay) sorovOverlay.classList.remove('show'); });
-document.getElementById('sorovConfirm').addEventListener('click', async ()=>{
+document.getElementById('sorovConfirm').addEventListener('click', ()=>{
   if(!sorovSoat){ toast('Muddatni tanlang (max 24 soat)', 'error'); return; }
   const seria = sorovSeria, soat = sorovSoat;
   sorovOverlay.classList.remove('show');
-  try{
-    await postAction({ action:'muddat_sorash', seria, login: currentUser.login, ism: currentUser.ism, tuman: currentUser.tuman, soat });
-    toast("So'rov adminga yuborildi", 'success');
-    await loadAll(); renderActive(); updateStats();
-  }catch(err){ toast(err.message, 'error'); }
+
+  // Tugma darhol bosiladi, so'rov fon rejimida yuboriladi.
+  toast("So'rov yuborilmoqda...", 'success');
+  bgTaskStart("Muddat so'rovi yuborilmoqda: " + seria);
+  postAction({ action:'muddat_sorash', seria, login: currentUser.login, ism: currentUser.ism, tuman: currentUser.tuman, soat })
+    .then(()=>{ toast("So'rov adminga yuborildi", 'success'); })
+    .catch(err=>{ toast(err.message, 'error'); })
+    .finally(()=>{ bgTaskEnd(); loadAll().then(()=>{ renderActive(); updateStats(); }); });
 });
 
 // ============ ADMIN: XABARLAR (SO'ROVLAR) ============
