@@ -232,6 +232,17 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 .check-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-dim);cursor:pointer;user-select:none}
 .check-row input[type="checkbox"]{width:17px;height:17px;accent-color:var(--blue);cursor:pointer}
 .sorov-check{position:absolute;top:14px;right:14px;width:18px;height:18px;accent-color:var(--blue);cursor:pointer}
+
+/* Kartaning yuqori-chap burchagidagi kichik tugma (masalan "Muddat so'rash") */
+.corner-btn{
+  position:absolute;top:12px;left:12px;width:30px;height:30px;border-radius:9px;
+  border:1px solid rgba(217,119,6,.35);background:rgba(217,119,6,.10);color:var(--warn);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s;z-index:2;
+}
+.corner-btn:active{transform:scale(.94)}
+.corner-btn.pending{color:var(--text-dim);background:var(--surface-2);border-color:var(--border);cursor:default}
+.corner-btn:disabled{cursor:default}
+.ticket-main.has-corner{padding-left:52px}
 </style>
 </head>
 <body>
@@ -300,6 +311,11 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
         <div id="tarixResults"></div>
       </div>
 
+      <div id="panelTugagan" style="display:none">
+        <div class="section-title" id="tugaganTitle">Muddati tugagan qurilmalar</div>
+        <div id="tugaganResults"></div>
+      </div>
+
       <div id="panelXabarlar" style="display:none">
         <div class="section-title">Muddat va qaytarish so'rovlari</div>
         <div class="xabarlar-toolbar" id="xabarlarToolbar" style="display:none">
@@ -327,6 +343,11 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
     <button class="nav-btn" id="navTarix">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
       Tarix
+    </button>
+    <button class="nav-btn" id="navTugagan">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      Tugagan
+      <span class="count" id="tugaganCount" style="display:none">0</span>
     </button>
     <button class="nav-btn" id="navXabarlar" style="display:none">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -531,7 +552,7 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwTjE4zHu_-UL4L
 const EMPLOYEES_URL = APPS_SCRIPT_URL + "?action=employees";
 const BOOTSTRAP_URL = APPS_SCRIPT_URL + "?action=bootstrap";
 
-let employees = [], sklad = [], kirim = [], chiqim = [], sorovlar = [];
+let employees = [], sklad = [], kirim = [], chiqim = [], sorovlar = [], tugaganlar = [];
 let currentUser = null;
 let skladTumanFilter = 'all';
 let skladMarkaFilter = '';
@@ -574,11 +595,9 @@ async function postAction(payload){
 }
 
 // ============ MUDDAT — ENDI FAQAT MA'LUMOT, AVTOMATIK TUGAMAYDI ============
-// Qurilma "muddati o'tgan" holatiga FAQAT admin qo'lda belgilaganda o'tadi
-// (backenddagi "Tugadimi" ustuni). Vaqt o'tishi bilan o'zi o'zgarmaydi.
-function isDeviceExpired(d){
-  return d.expired === true || d.expired === 'true';
-}
+// Qurilma "muddati o'tgan" holatiga FAQAT admin qo'lda belgilaganda o'tadi —
+// endi bu Kirim'dan Tugagan varag'iga ko'chirish orqali amalga oshadi
+// (alohida "expired" bayrog'i shart emas — qaysi varaqda turgani holatni bildiradi).
 function muddatInfoText(d){
   if(!d.MuddatSoat) return '';
   const soat = Number(d.MuddatSoat);
@@ -639,7 +658,7 @@ function fileToCompressedBase64(file, maxDim){
 async function loadAll(){
   try{
     const data = await fetchJson(BOOTSTRAP_URL);
-    sklad = data.sklad || []; kirim = data.kirim || []; chiqim = data.chiqim || []; sorovlar = data.sorovlar || [];
+    sklad = data.sklad || []; kirim = data.kirim || []; chiqim = data.chiqim || []; sorovlar = data.sorovlar || []; tugaganlar = data.tugaganlar || [];
   }catch(err){
     toast("Ma'lumotlarni yuklashda xatolik", 'error');
   }
@@ -734,16 +753,21 @@ function updateStats(){
   const pending = sorovlar.filter(r => (r.holat||'').toString().trim() === 'kutilmoqda').length;
   const xEl = document.getElementById('xabarlarCount');
   if(isAdmin && pending > 0){ xEl.style.display='flex'; xEl.textContent = pending; } else { xEl.style.display='none'; }
+  const tugaganCount = isAdmin ? tugaganlar.length : tugaganlar.filter(d=>normalize(d.login)===normalize(currentUser.login)).length;
+  const tEl = document.getElementById('tugaganCount');
+  if(tugaganCount > 0){ tEl.style.display='flex'; tEl.textContent = tugaganCount; } else { tEl.style.display='none'; }
 }
 
 const panelSklad = document.getElementById('panelSklad');
 const panelMening = document.getElementById('panelMening');
 const panelTarix = document.getElementById('panelTarix');
+const panelTugagan = document.getElementById('panelTugagan');
 const panelXabarlar = document.getElementById('panelXabarlar');
 const navBtns = {
   sklad: document.getElementById('navSklad'),
   mening: document.getElementById('navMening'),
   tarix: document.getElementById('navTarix'),
+  tugagan: document.getElementById('navTugagan'),
   xabarlar: document.getElementById('navXabarlar')
 };
 let activePanel = 'sklad';
@@ -778,6 +802,7 @@ function renderActive(){
   if(activePanel==='sklad') renderSklad();
   else if(activePanel==='mening') renderMening();
   else if(activePanel==='tarix') renderTarix();
+  else if(activePanel==='tugagan') renderTugagan();
   else renderXabarlar();
 }
 
@@ -788,6 +813,7 @@ function showPanel(name){
   panelSklad.style.display = name==='sklad' ? 'block':'none';
   panelMening.style.display = name==='mening' ? 'block':'none';
   panelTarix.style.display = name==='tarix' ? 'block':'none';
+  panelTugagan.style.display = name==='tugagan' ? 'block':'none';
   panelXabarlar.style.display = name==='xabarlar' ? 'block':'none';
   renderActive();
 }
@@ -888,54 +914,87 @@ document.getElementById('olishConfirm').addEventListener('click', ()=>{
 // ===== MENING — muddat endi statik ma'lumot, faollashtirish/qaytarish faqat admin =====
 function renderMening(){
   const isAdmin = currentUser.role === 'admin';
+  // MUHIM: Kirim endi FAQAT faol (muddati tugamagan) qurilmalarni saqlaydi —
+  // muddati tugagan qurilmalar Tugagan varag'iga ko'chib ketadi, shuning
+  // uchun bu yerda "expired" holatini alohida tekshirish shart emas.
   const list = isAdmin ? kirim.slice() : kirim.filter(d => normalize(d.login) === normalize(currentUser.login));
   const el = document.getElementById('meningResults');
   if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${isAdmin ? "Hozircha hech kimda qurilma yo'q" : "Siz hali hech qanday qurilma olmagansiz"}</div>`; return; }
   el.innerHTML = list.slice(0,150).map(d => {
-    const expired = isDeviceExpired(d);
     const isOwner = normalize(d.login) === normalize(currentUser.login);
     const muddatText = muddatInfoText(d);
 
-    // --- Muddat so'rovi holati (faqat egasiga ko'rinadi) ---
+    // --- Muddat so'rovi holati (faqat egasiga, yuqori-chap burchakdagi tugma) ---
     const latestMuddat = isOwner ? getLatestRequest(d['S/N'], 'muddat') : null;
     const muddatPending = !!(latestMuddat && (latestMuddat.holat||'').trim() === 'kutilmoqda');
     const muddatRejected = !!(latestMuddat && (latestMuddat.holat||'').trim() === 'rad etilgan');
-    let muddatBtnHtml = '';
+    let cornerBtnHtml = '';
     if(isOwner && !isAdmin){
-      const label = muddatPending ? "⏳ Kutilmoqda" : "🕐 Muddat so'rash";
-      muddatBtnHtml = `<button class="big-btn outline compact${muddatPending?' pending':''}" ${muddatPending?'disabled':''} onclick="openSorov('${encodeURIComponent(d['S/N'])}')">${label}</button>`;
+      cornerBtnHtml = `<button class="corner-btn${muddatPending?' pending':''}" ${muddatPending?'disabled':''} title="${muddatPending?"Muddat so'rovi kutilmoqda":"Muddat qo'shishni so'rash"}" onclick="openSorov('${encodeURIComponent(d['S/N'])}')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      </button>`;
     }
 
     // --- Qaytarish: admin uchun bevosita amal, xodim uchun so'rov ---
     const latestReturn = isOwner ? getLatestRequest(d['S/N'], 'qaytarish') : null;
     const returnPending = !!(latestReturn && (latestReturn.holat||'').trim() === 'kutilmoqda');
     const returnRejected = !!(latestReturn && (latestReturn.holat||'').trim() === 'rad etilgan');
-    const installDisabled = expired || returnPending;
 
     let actionsHtml;
-    if(expired && !isAdmin){
-      // Muddati admin tomonidan tugatilgan — xodim hech narsa qila olmaydi.
-      actionsHtml = `<div class="req-note rejected" style="margin-top:0">⛔ Muddat tugadi — hech qanday amal bajara olmaysiz, admin bilan bog'laning</div>`;
-    } else if(expired && isAdmin){
-      // Faollashtirish va Qaytarish — FAQAT admin.
+    if(isAdmin){
       actionsHtml = `
-        <button class="big-btn primary" onclick="openFaollashtirish('${encodeURIComponent(d['S/N'])}')">🔓 Faollashtirish</button>
-        <button class="big-btn ghost" onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">↩️ Qaytarish</button>`;
-    } else if(isAdmin){
-      actionsHtml = `
-        <button class="big-btn primary" ${installDisabled?'disabled':''} onclick="openInstall('${encodeURIComponent(d['S/N'])}')">✅ O'rnatish</button>
+        <button class="big-btn primary" ${returnPending?'disabled':''} onclick="openInstall('${encodeURIComponent(d['S/N'])}')">✅ O'rnatish</button>
         <button class="big-btn ghost" onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">↩️ Qaytarish</button>
         <button class="big-btn admin-end" onclick="muddatTugatish('${encodeURIComponent(d['S/N'])}')">⏰ Muddatni tugatish</button>`;
     } else {
       const returnBtnLabel = returnPending ? "⏳ Qaytarish so'rovi yuborilgan" : "↩️ Qaytarish so'rash";
       actionsHtml = `
-        <button class="big-btn primary" ${installDisabled?'disabled':''} onclick="openInstall('${encodeURIComponent(d['S/N'])}')">✅ O'rnatish</button>
-        <button class="big-btn ghost" ${returnPending?'disabled':''} onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">${returnBtnLabel}</button>
-        ${muddatBtnHtml}`;
+        <button class="big-btn primary" ${returnPending?'disabled':''} onclick="openInstall('${encodeURIComponent(d['S/N'])}')">✅ O'rnatish</button>
+        <button class="big-btn ghost" ${returnPending?'disabled':''} onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">${returnBtnLabel}</button>`;
     }
 
     return `
-    <div class="ticket${expired?' expired':''}">
+    <div class="ticket">
+      ${cornerBtnHtml}
+      <div class="ticket-main${cornerBtnHtml ? ' has-corner' : ''}">
+        <div class="ticket-code"><span class="bar">${barcodeSpans(8)}</span>${escapeHtml(d['S/N']||'')}</div>
+        <div class="ticket-sub">${escapeHtml(d.marka||'')} · Olingan: ${escapeHtml(d.sana||'')}</div>
+        ${d.manzil ? `<div class="ticket-sub">📍 ${escapeHtml(d.manzil)}</div>` : ''}
+        ${isAdmin ? `<div class="ticket-sub">👤 Xodim: <b style="color:var(--text)">${escapeHtml(d.Ism||d.login||'')}</b></div>` : ''}
+        <div class="ticket-tags">
+          <span class="ticket-tag">${tumanLabel(d.tuman)}</span>
+          ${muddatText ? `<span class="ticket-tag info">⏱ ${muddatText}</span>` : ''}
+        </div>
+        ${!isAdmin && returnRejected ? `<div class="req-note rejected">✕ So'nggi qaytarish so'rovingiz rad etildi</div>` : ''}
+        ${!isAdmin && muddatRejected ? `<div class="req-note rejected">✕ So'nggi muddat so'rovingiz rad etildi</div>` : ''}
+      </div>
+      <div class="action-stack">
+        ${actionsHtml}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== TUGAGAN — muddati admin tomonidan qo'lda tugatilgan qurilmalar =====
+// Admin uchun: Faollashtirish / Qaytarish tugmalari bilan.
+// Xodim uchun: faqat o'ziga tegishlilarini, faqat o'qish uchun (tugma yo'q) —
+// nega "Mening" bo'limidan yo'qolganini tushunishi uchun.
+function renderTugagan(){
+  const isAdmin = currentUser.role === 'admin';
+  document.getElementById('tugaganTitle').textContent = isAdmin
+    ? "Muddati tugagan qurilmalar — faollashtiring yoki qaytaring"
+    : "Sizning muddati tugagan qurilmalaringiz";
+  const list = isAdmin ? tugaganlar.slice() : tugaganlar.filter(d => normalize(d.login) === normalize(currentUser.login));
+  const el = document.getElementById('tugaganResults');
+  if(list.length === 0){ el.innerHTML = `<div class="empty-msg">Hozircha muddati tugagan qurilma yo'q</div>`; return; }
+  el.innerHTML = list.slice(0,150).map(d => {
+    const muddatText = muddatInfoText(d);
+    const actionsHtml = isAdmin
+      ? `<button class="big-btn primary" onclick="openFaollashtirish('${encodeURIComponent(d['S/N'])}')">🔓 Faollashtirish</button>
+         <button class="big-btn ghost" onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">↩️ Qaytarish</button>`
+      : `<div class="req-note rejected" style="margin-top:0">⛔ Muddat tugadi — hech qanday amal bajara olmaysiz, admin bilan bog'laning</div>`;
+    return `
+    <div class="ticket expired">
       <div class="ticket-main">
         <div class="ticket-code"><span class="bar">${barcodeSpans(8)}</span>${escapeHtml(d['S/N']||'')}</div>
         <div class="ticket-sub">${escapeHtml(d.marka||'')} · Olingan: ${escapeHtml(d.sana||'')}</div>
@@ -944,10 +1003,9 @@ function renderMening(){
         <div class="ticket-tags">
           <span class="ticket-tag">${tumanLabel(d.tuman)}</span>
           ${muddatText ? `<span class="ticket-tag info">⏱ ${muddatText}</span>` : ''}
-          ${expired ? `<span class="ticket-tag expired">Muddati tugagan</span>` : ''}
+          <span class="ticket-tag expired">Muddati tugagan</span>
         </div>
-        ${!isAdmin && returnRejected ? `<div class="req-note rejected">✕ So'nggi qaytarish so'rovingiz rad etildi</div>` : ''}
-        ${!isAdmin && !expired && muddatRejected ? `<div class="req-note rejected">✕ So'nggi muddat so'rovingiz rad etildi</div>` : ''}
+        ${d.TugatilganVaqt ? `<div class="ticket-sub">Tugatilgan vaqt: ${escapeHtml(d.TugatilganVaqt)}</div>` : ''}
       </div>
       <div class="action-stack">
         ${actionsHtml}
