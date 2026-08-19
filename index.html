@@ -658,6 +658,7 @@ function fileToCompressedBase64(file, maxDim){
 async function loadAll(){
   try{
     const data = await fetchJson(BOOTSTRAP_URL);
+    employees = data.employees || employees;
     sklad = data.sklad || []; kirim = data.kirim || []; chiqim = data.chiqim || []; sorovlar = data.sorovlar || []; tugaganlar = data.tugaganlar || [];
   }catch(err){
     toast("Ma'lumotlarni yuklashda xatolik", 'error');
@@ -668,12 +669,10 @@ async function loadAll(){
 // Login (yoki avtomatik kirish) ekrani hech qachon ma'lumot yuklanishidan
 // oldin ko'rsatilmaydi — foydalanuvchi bo'sh/eskirgan ro'yxat ko'rmasligi kerak.
 async function initApp(){
-  try{
-    await Promise.all([
-      (async()=>{ try{ employees = await fetchJson(EMPLOYEES_URL); }catch(e){} })(),
-      loadAll()
-    ]);
-  }catch(e){}
+  // TEZLASHTIRISH: avval ikkita alohida so'rov (bootstrap + employees) yuborilardi —
+  // har birining o'z "sovuq boshlanish" kechikishi bo'lardi. Endi employees ham
+  // bootstrap javobi ichida keladi — bitta so'rov, tezroq yuklanish.
+  await loadAll();
   document.getElementById('loadingScreen').style.display = 'none';
   const saved = localStorage.getItem('sklad_user');
   if(saved){
