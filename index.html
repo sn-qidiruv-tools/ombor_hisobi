@@ -186,8 +186,8 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 .upload-slot{aspect-ratio:1;border-radius:14px;border:1.5px dashed var(--border-hi);background:var(--surface-2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;position:relative;overflow:hidden;color:var(--text-dim);font-size:11px;font-weight:600;text-align:center;padding:8px}
 .upload-slot.filled{border-style:solid;border-color:var(--ok);color:var(--text)}
 .upload-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.upload-slot .req{color:var(--danger);font-size:9px;font-weight:800;position:absolute;top:6px;right:6px;background:rgba(20,30,60,.55);padding:2px 6px;border-radius:100px}
-.upload-slot .opt{color:var(--text-dim);font-size:9px;font-weight:700;position:absolute;top:6px;right:6px;background:rgba(20,30,60,.55);padding:2px 6px;border-radius:100px}
+.upload-slot .req{color:#ffffff;font-size:9px;font-weight:800;position:absolute;top:6px;right:6px;background:rgba(225,29,72,.92);padding:2px 6px;border-radius:100px}
+.upload-slot .opt{color:#ffffff;font-size:9px;font-weight:700;position:absolute;top:6px;right:6px;background:rgba(20,30,60,.75);padding:2px 6px;border-radius:100px}
 .upload-slot input{display:none}
 .upload-slot .check{position:absolute;bottom:6px;right:6px;background:var(--ok);color:#ffffff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
 
@@ -214,6 +214,15 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 .loc-btn.picked{border-style:solid;border-color:var(--ok);color:var(--ok);background:rgba(79,209,165,.08)}
 .map-modal{background:var(--panel);border:1px solid var(--border);border-radius:22px 22px 0 0;width:100%;max-width:var(--app-max-width);padding:16px;max-height:90vh;display:flex;flex-direction:column;gap:12px}
 #leafletMap{width:100%;height:340px;border-radius:14px;overflow:hidden;background:var(--surface-2)}
+.locate-me-btn{
+  position:absolute;bottom:12px;right:12px;z-index:1000;width:38px;height:38px;border-radius:10px;
+  background:#ffffff;border:1px solid var(--border);color:var(--blue);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 14px rgba(20,30,60,.22);
+}
+.locate-me-btn:active{transform:scale(.94)}
+.locate-me-btn.loading{color:var(--text-dim)}
+/* Foydalanuvchining o'z joylashuvi belgisi (ko'k nuqta) */
+.my-location-dot{width:16px;height:16px;border-radius:50%;background:var(--blue);border:3px solid #ffffff;box-shadow:0 0 0 2px rgba(47,111,237,.5), 0 2px 6px rgba(20,30,60,.3)}
 .map-hint{font-size:12px;color:var(--text-dim);text-align:center}
 .map-coords{font-family:var(--mono);font-size:12.5px;text-align:center;color:var(--cyan)}
 
@@ -521,7 +530,12 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
   <div class="map-modal">
     <h2 style="margin:0">Joylashuvni tanlang</h2>
     <p class="map-hint">Xarita GPS orqali taxminiy joyni ko'rsatadi — belgini (📍) surib yoki xaritaga bosib aniq nuqtani ko'rsating.</p>
-    <div id="leafletMap"></div>
+    <div style="position:relative">
+      <div id="leafletMap"></div>
+      <button type="button" class="locate-me-btn" id="locateMeBtn" title="Mening joylashuvim">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </button>
+    </div>
     <div class="map-coords" id="mapCoordsText">Aniqlanmoqda...</div>
     <div class="modal-actions">
       <button class="btn btn-secondary" id="mapCancel">Bekor qilish</button>
@@ -688,9 +702,9 @@ async function doLogin(){
     if(found){
       currentUser = { ism: found.ISM, login: found.LOGIN, tuman: (found.tuman||'').toString().trim(), role: (found.dostup||'xodim').toString().trim().toLowerCase() };
       localStorage.setItem('sklad_user', JSON.stringify(currentUser));
-      // Kirishdan oldin ma'lumotni yana bir bor yangilab olamiz — eng so'nggi holat bilan kirsin.
-      btn.textContent = "Ma'lumotlar yuklanmoqda...";
-      await loadAll();
+      // Ma'lumot allaqachon sahifa ochilganda yuklangan (initApp/loadAll) —
+      // shuning uchun bu yerda qayta yuklash shart emas, darhol kiramiz.
+      // (Yangilash tugmasi orqali istalgan payt qo'lda yangilash mumkin.)
       enterApp();
     }else{
       errEl.textContent = "Login yoki parol noto'g'ri"; errEl.classList.add('show');
@@ -1253,9 +1267,10 @@ document.getElementById('installConfirm').addEventListener('click', ()=>{
 });
 
 // ============ JOYLASHUV (XARITA) ============
-let leafletMapInstance = null, leafletMarker = null, pickedLatLng = null;
+let leafletMapInstance = null, leafletMarker = null, pickedLatLng = null, myLocationMarker = null;
 const mapOverlay = document.getElementById('mapOverlay');
 const locBtn = document.getElementById('locBtn');
+const locateMeBtn = document.getElementById('locateMeBtn');
 const DEFAULT_CENTER = [39.7747, 64.4286];
 
 function resetLocation(){
@@ -1308,6 +1323,8 @@ function initLeafletMap(){
         maxZoom: 19, attribution: 'Tiles © Esri'
       });
       L.control.layers({ '🗺️ Xarita': streetLayer, '🛰️ Sputnik': satelliteLayer }, null, { position: 'topright', collapsed: false }).addTo(leafletMapInstance);
+      // Masshtab chizg'ich (leneyka) — masofani metr/km da ko'rsatadi.
+      L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(leafletMapInstance);
       leafletMarker = L.marker(startCenter, { draggable: true }).addTo(leafletMapInstance);
       leafletMarker.on('dragend', ()=>{
         const p = leafletMarker.getLatLng();
@@ -1332,6 +1349,7 @@ function initLeafletMap(){
           leafletMapInstance.setView(c, 16);
           leafletMarker.setLatLng(c);
           updateCoordsText(c[0], c[1]);
+          showMyLocationDot(c);
         },
         ()=>{ updateCoordsText(startCenter[0], startCenter[1]); },
         { enableHighAccuracy: true, timeout: 8000 }
@@ -1339,6 +1357,40 @@ function initLeafletMap(){
     }
   }, 50);
 }
+
+// Foydalanuvchining O'ZI qayerda turganini xaritada ko'k nuqta bilan
+// belgilaydi — bu qurilma o'rnatiladigan (sudraladigan) belgidan alohida.
+function showMyLocationDot(latlng){
+  if(!leafletMapInstance) return;
+  const icon = L.divIcon({ className: 'my-location-dot', iconSize: [16,16] });
+  if(myLocationMarker){
+    myLocationMarker.setLatLng(latlng);
+  } else {
+    myLocationMarker = L.marker(latlng, { icon, interactive: false, zIndexOffset: 1000 }).addTo(leafletMapInstance);
+  }
+}
+
+// "Mening joylashuvim" tugmasi — GPS orqali xaritani foydalanuvchi turgan
+// joyga markazlashtiradi va ko'k nuqta bilan belgilaydi (qurilma belgisini
+// harakatlantirmaydi — faqat ko'rish uchun).
+function locateMe(){
+  if(!navigator.geolocation){ toast('Brauzeringiz joylashuvni aniqlay olmaydi', 'error'); return; }
+  locateMeBtn.classList.add('loading');
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      const c = [pos.coords.latitude, pos.coords.longitude];
+      leafletMapInstance.setView(c, 17);
+      showMyLocationDot(c);
+      locateMeBtn.classList.remove('loading');
+    },
+    ()=>{
+      toast("Joylashuvni aniqlab bo'lmadi — GPS ruxsatini tekshiring", 'error');
+      locateMeBtn.classList.remove('loading');
+    },
+    { enableHighAccuracy: true, timeout: 8000 }
+  );
+}
+locateMeBtn.addEventListener('click', locateMe);
 
 locBtn.addEventListener('click', openMapPicker);
 document.getElementById('mapCancel').addEventListener('click', ()=> mapOverlay.classList.remove('show'));
