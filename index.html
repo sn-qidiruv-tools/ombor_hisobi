@@ -575,6 +575,12 @@ function tumanLabel(raw){
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s??''; return d.innerHTML; }
 function barcodeSpans(n){ let h=''; for(let i=0;i<n;i++) h+='<span></span>'; return h; }
 
+// Optimistik yangilanishlar uchun — bugungi sana klient tomonda ham serverdagi
+// bilan bir xil formatda ("uz-UZ") kerak bo'ladi.
+function todaySanaClient(){
+  return new Date().toLocaleDateString('uz-UZ', {day:'2-digit', month:'2-digit', year:'numeric'});
+}
+
 function toast(msg, type){
   const wrap = document.getElementById('toastWrap');
   const el = document.createElement('div');
@@ -886,6 +892,7 @@ async function onOlishFile(e){
 document.getElementById('olishCancel').addEventListener('click', ()=> olishOverlay.classList.remove('show'));
 olishOverlay.addEventListener('click', e=>{ if(e.target===olishOverlay) olishOverlay.classList.remove('show'); });
 
+// ==== "Oldim" tugmasi — OPTIMISTIK: server javobini kutmasdan darhol Sklad -> Kirim ko'chiradi ====
 document.getElementById('olishConfirm').addEventListener('click', ()=>{
   const manzil = document.getElementById('olishManzil').value.trim();
   if(!manzil){ toast('Manzilni kiriting', 'error'); return; }
@@ -893,19 +900,39 @@ document.getElementById('olishConfirm').addEventListener('click', ()=>{
   if(!olishFileData){ toast('Talabnoma rasmini yuklang', 'error'); return; }
   const seria = olishSeria;
   const muddat_soat = olishMuddatSoat;
+  const manzilVal = manzil;
   olishOverlay.classList.remove('show');
 
+  // Darhol lokal massivlarni yangilaymiz va qayta chizamiz
+  const skladIdx = sklad.findIndex(d => d['S/N'] === seria);
+  const removed = skladIdx > -1 ? sklad.splice(skladIdx, 1)[0] : null;
+  kirim.push({
+    'S/N': seria,
+    marka: removed ? removed.marka : '',
+    manzil: manzilVal,
+    login: currentUser.login,
+    sana: todaySanaClient(),
+    tuman: removed ? removed.tuman : currentUser.tuman,
+    MsgId: '', MsgChatId: '',
+    Ism: currentUser.ism,
+    MuddatSoat: muddat_soat,
+    OlinganVaqt: new Date().toISOString()
+  });
+  renderActive();
+  updateStats();
+
   bgTaskStart('Biriktirilmoqda: ' + seria);
-  postAction({ action:'olish', seria, login: currentUser.login, ism: currentUser.ism, role: currentUser.role, tuman: currentUser.tuman, manzil, muddat_soat, talabnoma_rasm: olishFileData })
+  postAction({ action:'olish', seria, login: currentUser.login, ism: currentUser.ism, role: currentUser.role, tuman: currentUser.tuman, manzil: manzilVal, muddat_soat, talabnoma_rasm: olishFileData })
     .then((res)=>{
-      toast('Qurilma sizga biriktirildi', 'success');
       if(res.telegram_debug){ toast('TELEGRAM: ' + res.telegram_debug, 'error'); }
-    })
-    .catch(err=>{ toast(err.message, 'error'); })
-    .finally(()=>{
-      bgTaskEnd();
+      // Fonda haqiqiy ma'lumot bilan sokin sinxronlaymiz
       loadAll().then(()=>{ renderActive(); updateStats(); });
-    });
+    })
+    .catch(err=>{
+      toast(err.message, 'error'); // xato bo'lsa — haqiqiy holatni serverdan qayta yuklab, orqaga qaytaramiz
+      loadAll().then(()=>{ renderActive(); updateStats(); });
+    })
+    .finally(()=>{ bgTaskEnd(); });
 });
 
 // ===== MENING — muddat endi statik ma'lumot, faollashtirish/qaytarish faqat admin =====
@@ -1019,29 +1046,50 @@ document.querySelectorAll('#faollashtirishDurationGrid .duration-btn').forEach(b
     faollashtirishMuddatSoat = btn.dataset.hours;
   });
 });
+// ==== "Faollashtirish" — OPTIMISTIK: Tugagan -> Kirim darhol ko'chadi ====
 document.getElementById('faollashtirishConfirm').addEventListener('click', ()=>{
   if(!faollashtirishMuddatSoat){ toast('Muddatni tanlang', 'error'); return; }
   const seria = faollashtirishSeria, muddat_soat = faollashtirishMuddatSoat;
   faollashtirishOverlay.classList.remove('show');
+
+  const idx = tugaganlar.findIndex(d => d['S/N'] === seria);
+  const removed = idx > -1 ? tugaganlar.splice(idx, 1)[0] : null;
+  if(removed){
+    kirim.push(Object.assign({}, removed, { MuddatSoat: muddat_soat, OlinganVaqt: new Date().toISOString() }));
+  }
+  renderActive();
+  updateStats();
+
   bgTaskStart('Faollashtirilmoqda: ' + seria);
   postAction({ action:'faollashtirish', seria, muddat_soat, role: currentUser.role, login: currentUser.login })
-    .then(()=>{ toast('Qurilma faollashtirildi — yangi muddat belgilandi', 'success'); })
-    .catch(err=>{ toast(err.message, 'error'); })
-    .finally(()=>{ bgTaskEnd(); loadAll().then(()=>{ renderActive(); updateStats(); }); });
+    .then(()=>{ loadAll().then(()=>{ renderActive(); updateStats(); }); })
+    .catch(err=>{ toast(err.message, 'error'); loadAll().then(()=>{ renderActive(); updateStats(); }); })
+    .finally(()=>{ bgTaskEnd(); });
 });
 
 // ============ ADMIN: QO'LDA "MUDDATI TUGAGAN" DEB BELGILASH ============
+// ==== OPTIMISTIK: Kirim -> Tugagan darhol ko'chadi ====
 function muddatTugatish(seriaEnc){
   const seria = decodeURIComponent(seriaEnc);
   if(!confirm("Ushbu qurilmani muddati tugagan deb belgilaysizmi?\nXodim bu qurilma bilan endi ishlay olmaydi.")) return;
+
+  const idx = kirim.findIndex(d => d['S/N'] === seria);
+  const removed = idx > -1 ? kirim.splice(idx, 1)[0] : null;
+  if(removed){
+    tugaganlar.push(Object.assign({}, removed, { TugatilganVaqt: new Date().toLocaleString('uz-UZ') }));
+  }
+  renderActive();
+  updateStats();
+
   bgTaskStart('Muddat tugatilmoqda: ' + seria);
   postAction({ action:'muddat_tugatish', seria, role: currentUser.role, login: currentUser.login })
-    .then(()=>{ toast('Muddat tugatildi', 'success'); })
-    .catch(err=>{ toast(err.message, 'error'); })
-    .finally(()=>{ bgTaskEnd(); loadAll().then(()=>{ renderActive(); updateStats(); }); });
+    .then(()=>{ loadAll().then(()=>{ renderActive(); updateStats(); }); })
+    .catch(err=>{ toast(err.message, 'error'); loadAll().then(()=>{ renderActive(); updateStats(); }); })
+    .finally(()=>{ bgTaskEnd(); });
 }
 window.muddatTugatish = muddatTugatish;
 
+// ==== "Qaytarish" — admin: OPTIMISTIK darhol Sklad'ga qaytadi. Xodim: OPTIMISTIK so'rov "kutilmoqda" holatida qo'shiladi ====
 document.getElementById('qaytarishConfirm').addEventListener('click', ()=>{
   const sabab = document.getElementById('qaytarishSabab').value.trim();
   if(!sabab){ toast('Sababni kiriting', 'error'); return; }
@@ -1050,17 +1098,39 @@ document.getElementById('qaytarishConfirm').addEventListener('click', ()=>{
   const isAdmin = currentUser.role === 'admin';
 
   if(isAdmin){
+    let idx = kirim.findIndex(d => d['S/N'] === seria);
+    let removed = null;
+    if(idx > -1){ removed = kirim.splice(idx, 1)[0]; }
+    else {
+      idx = tugaganlar.findIndex(d => d['S/N'] === seria);
+      if(idx > -1) removed = tugaganlar.splice(idx, 1)[0];
+    }
+    if(removed){
+      sklad.push({ 'S/N': removed['S/N'], marka: removed.marka, tuman: removed.tuman });
+    }
+    renderActive();
+    updateStats();
+
     bgTaskStart('Omborga qaytarilmoqda: ' + seria);
     postAction({ action:'qaytarish', seria, login: currentUser.login, role: currentUser.role, sabab })
-      .then(()=>{ toast('Qurilma omborga qaytarildi', 'success'); })
-      .catch(err=>{ toast(err.message, 'error'); })
-      .finally(()=>{ bgTaskEnd(); loadAll().then(()=>{ renderActive(); updateStats(); }); });
+      .then(()=>{ loadAll().then(()=>{ renderActive(); updateStats(); }); })
+      .catch(err=>{ toast(err.message, 'error'); loadAll().then(()=>{ renderActive(); updateStats(); }); })
+      .finally(()=>{ bgTaskEnd(); });
   } else {
+    sorovlar.push({
+      ID: 'temp_' + Date.now(),
+      turi: 'qaytarish',
+      seria, login: currentUser.login, Ism: currentUser.ism, tuman: currentUser.tuman,
+      soat: '', sabab, holat: 'kutilmoqda', vaqt: new Date().toLocaleString('uz-UZ')
+    });
+    renderActive();
+    updateStats();
+
     bgTaskStart("So'rov yuborilmoqda: " + seria);
     postAction({ action:'qaytarish_sorash', seria, login: currentUser.login, ism: currentUser.ism, tuman: currentUser.tuman, sabab })
-      .then(()=>{ toast("Qaytarish so'rovi adminga yuborildi", 'success'); })
-      .catch(err=>{ toast(err.message, 'error'); })
-      .finally(()=>{ bgTaskEnd(); loadAll().then(()=>{ renderActive(); updateStats(); }); });
+      .then(()=>{ loadAll().then(()=>{ renderActive(); updateStats(); }); })
+      .catch(err=>{ toast(err.message, 'error'); loadAll().then(()=>{ renderActive(); updateStats(); }); })
+      .finally(()=>{ bgTaskEnd(); });
   }
 });
 
@@ -1083,16 +1153,26 @@ document.querySelectorAll('#sorovDurationGrid .duration-btn').forEach(btn=>{
 });
 document.getElementById('sorovCancel').addEventListener('click', ()=> sorovOverlay.classList.remove('show'));
 sorovOverlay.addEventListener('click', e=>{ if(e.target===sorovOverlay) sorovOverlay.classList.remove('show'); });
+// ==== "Muddat so'rash" — OPTIMISTIK: so'rov darhol "kutilmoqda" holatida qo'shiladi ====
 document.getElementById('sorovConfirm').addEventListener('click', ()=>{
   if(!sorovSoat){ toast('Muddatni tanlang (max 24 soat)', 'error'); return; }
   const seria = sorovSeria, soat = sorovSoat;
   sorovOverlay.classList.remove('show');
 
+  sorovlar.push({
+    ID: 'temp_' + Date.now(),
+    turi: 'muddat',
+    seria, login: currentUser.login, Ism: currentUser.ism, tuman: currentUser.tuman,
+    soat, sabab: '', holat: 'kutilmoqda', vaqt: new Date().toLocaleString('uz-UZ')
+  });
+  renderActive();
+  updateStats();
+
   bgTaskStart("Muddat so'rovi yuborilmoqda: " + seria);
   postAction({ action:'muddat_sorash', seria, login: currentUser.login, ism: currentUser.ism, tuman: currentUser.tuman, soat })
-    .then(()=>{ toast("So'rov adminga yuborildi", 'success'); })
-    .catch(err=>{ toast(err.message, 'error'); })
-    .finally(()=>{ bgTaskEnd(); loadAll().then(()=>{ renderActive(); updateStats(); }); });
+    .then(()=>{ loadAll().then(()=>{ renderActive(); updateStats(); }); })
+    .catch(err=>{ toast(err.message, 'error'); loadAll().then(()=>{ renderActive(); updateStats(); }); })
+    .finally(()=>{ bgTaskEnd(); });
 });
 
 // ============ ADMIN: XABARLAR (SO'ROVLAR) ============
@@ -1167,32 +1247,74 @@ document.getElementById('xabarlarSelectAll').addEventListener('change', (e)=>{
   renderXabarlar();
 });
 
+// ==== Xabarlarni o'chirish — OPTIMISTIK: darhol ro'yxatdan olib tashlanadi ====
 document.getElementById('xabarlarDeleteBtn').addEventListener('click', async ()=>{
   if(selectedSorovIds.size === 0) return;
   const ids = Array.from(selectedSorovIds);
+
+  const removedItems = [];
+  sorovlar = sorovlar.filter(r=>{
+    if(ids.indexOf(r.ID) > -1){ removedItems.push(r); return false; }
+    return true;
+  });
+  selectedSorovIds.clear();
+  renderActive();
+  updateStats();
+
   try{
     await postAction({ action:'sorov_ochirish', ids, role: currentUser.role });
-    toast("Belgilangan xabarlar o'chirildi", 'success');
-    selectedSorovIds.clear();
-    await loadAll(); renderActive(); updateStats();
-  }catch(err){ toast(err.message, 'error'); }
+    loadAll().then(()=>{ renderActive(); updateStats(); });
+  }catch(err){
+    toast(err.message, 'error');
+    loadAll().then(()=>{ renderActive(); updateStats(); });
+  }
 });
 
+// ==== "Ruxsat berish" — OPTIMISTIK: holatni darhol o'zgartiradi va (qaytarish so'rovi bo'lsa) qurilmani ko'chiradi ====
 async function sorovQabul(idEnc){
   const id = decodeURIComponent(idEnc);
+
+  const r = sorovlar.find(x => x.ID === id);
+  if(r){
+    r.holat = 'qabul qilingan';
+    if((r.turi||'').trim() === 'qaytarish'){
+      let idx = kirim.findIndex(d => d['S/N'] === r.seria);
+      let movedDevice = null;
+      if(idx > -1) movedDevice = kirim.splice(idx, 1)[0];
+      else {
+        idx = tugaganlar.findIndex(d => d['S/N'] === r.seria);
+        if(idx > -1) movedDevice = tugaganlar.splice(idx, 1)[0];
+      }
+      if(movedDevice) sklad.push({ 'S/N': movedDevice['S/N'], marka: movedDevice.marka, tuman: movedDevice.tuman });
+    }
+  }
+  renderActive();
+  updateStats();
+
   try{
     await postAction({ action:'sorov_qabul', id, role: currentUser.role });
-    toast('So\'rov qabul qilindi', 'success');
-    await loadAll(); renderActive(); updateStats();
-  }catch(err){ toast(err.message, 'error'); }
+    loadAll().then(()=>{ renderActive(); updateStats(); });
+  }catch(err){
+    toast(err.message, 'error');
+    loadAll().then(()=>{ renderActive(); updateStats(); });
+  }
 }
+// ==== "Rad etish" — OPTIMISTIK: holatni darhol "rad etilgan" qiladi ====
 async function sorovRad(idEnc){
   const id = decodeURIComponent(idEnc);
+
+  const r = sorovlar.find(x => x.ID === id);
+  if(r) r.holat = 'rad etilgan';
+  renderActive();
+  updateStats();
+
   try{
     await postAction({ action:'sorov_rad', id, role: currentUser.role });
-    toast("So'rov rad etildi", 'success');
-    await loadAll(); renderActive(); updateStats();
-  }catch(err){ toast(err.message, 'error'); }
+    loadAll().then(()=>{ renderActive(); updateStats(); });
+  }catch(err){
+    toast(err.message, 'error');
+    loadAll().then(()=>{ renderActive(); updateStats(); });
+  }
 }
 window.sorovQabul = sorovQabul;
 window.sorovRad = sorovRad;
@@ -1242,6 +1364,7 @@ window.openInstall = openInstall;
 document.getElementById('installCancel').addEventListener('click', ()=> installOverlay.classList.remove('show'));
 installOverlay.addEventListener('click', e=>{ if(e.target===installOverlay) installOverlay.classList.remove('show'); });
 
+// ==== "O'rnatish" — OPTIMISTIK: Kirim -> Chiqim darhol ko'chadi ====
 document.getElementById('installConfirm').addEventListener('click', ()=>{
   const manzilBase = document.getElementById('installManzil').value.trim();
   const uy = document.getElementById('installUy').value.trim();
@@ -1256,14 +1379,30 @@ document.getElementById('installConfirm').addEventListener('click', ()=>{
   const lokatsiya = pickedLatLng ? (pickedLatLng.lat.toFixed(6) + ', ' + pickedLatLng.lng.toFixed(6)) : '';
   installOverlay.classList.remove('show');
 
+  const kirimIdx = kirim.findIndex(d => d['S/N'] === seria);
+  const removed = kirimIdx > -1 ? kirim.splice(kirimIdx, 1)[0] : null;
+  chiqim.push({
+    'S/N': seria,
+    marka: removed ? removed.marka : '',
+    manzil, OLT: olt, Port: port, Masofa: masofa, Lokatsiya: lokatsiya,
+    login: currentUser.login,
+    sana: todaySanaClient(),
+    tuman: removed ? removed.tuman : currentUser.tuman,
+    Ism: currentUser.ism
+  });
+  renderActive();
+  updateStats();
+
   bgTaskStart("O'rnatilmoqda: " + seria);
   postAction({ action:'ornatish', seria, login: currentUser.login, ism: currentUser.ism, role: currentUser.role, manzil, olt, port, masofa, lokatsiya, rasmlar })
-    .then(()=>{ toast("Qurilma o'rnatildi deb belgilandi", 'success'); })
-    .catch(err=>{ toast(err.message, 'error'); })
-    .finally(()=>{
-      bgTaskEnd();
+    .then(()=>{
       loadAll().then(()=>{ renderActive(); updateStats(); });
-    });
+    })
+    .catch(err=>{
+      toast(err.message, 'error');
+      loadAll().then(()=>{ renderActive(); updateStats(); });
+    })
+    .finally(()=>{ bgTaskEnd(); });
 });
 
 // ============ JOYLASHUV (XARITA) ============
@@ -1438,17 +1577,25 @@ document.getElementById('addBtn').addEventListener('click', ()=>{
 document.getElementById('addCancel').addEventListener('click', ()=> addOverlay.classList.remove('show'));
 addOverlay.addEventListener('click', e=>{ if(e.target===addOverlay) addOverlay.classList.remove('show'); });
 
+// ==== "Skladga yangi qurilma qo'shish" — OPTIMISTIK: darhol Sklad ro'yxatiga qo'shiladi ====
 document.getElementById('addConfirm').addEventListener('click', async ()=>{
   const seria = document.getElementById('newSeria').value.trim();
   const marka = document.getElementById('newMarka').value.trim();
   const tuman = document.getElementById('newTuman').value;
   if(!seria){ toast('Seriya raqamini kiriting', 'error'); return; }
   addOverlay.classList.remove('show');
+
+  sklad.push({ 'S/N': seria, marka, tuman });
+  renderActive();
+  updateStats();
+
   try{
     await postAction({ action:'yangi_sklad', seria, marka, tuman, role: currentUser.role });
-    toast("Qurilma skladga qo'shildi", 'success');
-    await loadAll(); renderActive(); updateStats();
-  }catch(err){ toast(err.message, 'error'); }
+    loadAll().then(()=>{ renderActive(); updateStats(); });
+  }catch(err){
+    toast(err.message, 'error');
+    loadAll().then(()=>{ renderActive(); updateStats(); });
+  }
 });
 
 initApp();
