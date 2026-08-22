@@ -540,6 +540,23 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
   </div>
 </div>
 
+<div class="overlay" id="yonaltirishOverlay">
+  <div class="modal">
+    <h2>Boshqa xodimga yo'naltirish</h2>
+    <p class="modal-sub">Qurilma tanlangan xodimga o'tkaziladi, Telegram xabari ham yangilanadi</p>
+    <div class="field">
+      <label>Xodim</label>
+      <select id="yonaltirishXodim">
+        <option value="">Xodimni tanlang</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="yonaltirishCancel">Bekor qilish</button>
+      <button class="btn" id="yonaltirishConfirm">Yo'naltirish</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="sorovOverlay">
   <div class="modal">
     <h2>Qo'shimcha muddat so'rash</h2>
@@ -1013,6 +1030,7 @@ function renderMening(){
     } else if(isAdmin){
       actionsHtml = `
         <button class="big-btn primary" ${returnPending?'disabled':''} onclick="openInstall('${encodeURIComponent(d['S/N'])}')">✅ O'rnatish</button>
+        <button class="big-btn neutral" onclick="openYonaltirish('${encodeURIComponent(d['S/N'])}')">↗️ Yo'naltirish</button>
         <button class="big-btn ghost" onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">↩️ Qaytarish</button>
         <button class="big-btn admin-end" onclick="muddatTugatish('${encodeURIComponent(d['S/N'])}')">⏰ Muddatni tugatish</button>`;
     } else {
@@ -1203,8 +1221,50 @@ document.getElementById('qaytarishConfirm').addEventListener('click', ()=>{
   }
 });
 
-// ============ MUDDAT SO'RASH ============
-let sorovSeria = null, sorovSoat = null;
+// ============ ADMIN: BOSHQA XODIMGA YO'NALTIRISH ============
+let yonaltirishSeria = null;
+const yonaltirishOverlay = document.getElementById('yonaltirishOverlay');
+function openYonaltirish(seriaEnc){
+  yonaltirishSeria = decodeURIComponent(seriaEnc);
+  const d = kirim.find(x => x['S/N'] === yonaltirishSeria);
+  const sel = document.getElementById('yonaltirishXodim');
+  const currentLogin = d ? normalize(d.login) : '';
+  const list = employees
+    .filter(e => normalize(e.LOGIN) !== currentLogin)
+    .sort((a,b) => (a.ISM||'').localeCompare(b.ISM||''));
+  sel.innerHTML = '<option value="">Xodimni tanlang</option>' +
+    list.map(e => `<option value="${escapeHtml(e.LOGIN)}" data-ism="${escapeHtml(e.ISM)}">${escapeHtml(e.ISM)} (${tumanLabel(e.tuman)})</option>`).join('');
+  yonaltirishOverlay.classList.add('show');
+}
+window.openYonaltirish = openYonaltirish;
+document.getElementById('yonaltirishCancel').addEventListener('click', ()=> yonaltirishOverlay.classList.remove('show'));
+yonaltirishOverlay.addEventListener('click', e=>{ if(e.target===yonaltirishOverlay) yonaltirishOverlay.classList.remove('show'); });
+
+// ==== "Yo'naltirish" — OPTIMISTIK: egasi darhol yangi xodimga almashadi ====
+document.getElementById('yonaltirishConfirm').addEventListener('click', ()=>{
+  const sel = document.getElementById('yonaltirishXodim');
+  const yangiLogin = sel.value;
+  if(!yangiLogin){ toast('Xodimni tanlang', 'error'); return; }
+  const yangiIsm = sel.options[sel.selectedIndex].getAttribute('data-ism') || yangiLogin;
+  const seria = yonaltirishSeria;
+  yonaltirishOverlay.classList.remove('show');
+
+  const d = kirim.find(x => x['S/N'] === seria);
+  const eskiIsm = d ? (d.Ism || d.login) : '';
+  if(d){ d.login = yangiLogin; d.Ism = yangiIsm; }
+  renderActive();
+  updateStats();
+
+  bgTaskStart("Yo'naltirilmoqda: " + seria);
+  postAction({ action:'yonaltirish', seria, yangi_login: yangiLogin, yangi_ism: yangiIsm, role: currentUser.role, admin_login: currentUser.login })
+    .then(()=>{
+      toast(eskiIsm + " → " + yangiIsm + " ga yo'naltirildi", 'success');
+      loadAll().then(()=>{ renderActive(); updateStats(); });
+    })
+    .catch(err=>{ toast(err.message, 'error'); loadAll().then(()=>{ renderActive(); updateStats(); }); })
+    .finally(()=>{ bgTaskEnd(); });
+});
+
 const sorovOverlay = document.getElementById('sorovOverlay');
 function openSorov(seriaEnc){
   sorovSeria = decodeURIComponent(seriaEnc);
