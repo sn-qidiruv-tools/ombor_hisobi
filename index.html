@@ -309,6 +309,15 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 
       <div id="panelMening" style="display:none">
         <div class="section-title" id="meningTitle">Siz olgan, hali o'rnatilmagan qurilmalar</div>
+        <div class="search-box">
+          <span class="search-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
+          <input type="text" id="meningSearch" placeholder="S/N bo'yicha qidirish...">
+          <button class="search-clear" id="meningSearchClear">✕</button>
+          <button class="icon-btn" id="meningFilterBtn" title="Filter" style="flex-shrink:0;position:relative">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+            <span id="meningFilterDot" style="display:none;position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--cyan)"></span>
+          </button>
+        </div>
         <div id="meningResults"></div>
       </div>
 
@@ -407,6 +416,39 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
     <div class="modal-actions">
       <button class="btn btn-secondary" id="filterReset">Tozalash</button>
       <button class="btn" id="filterApply">Qo'llash</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="meningFilterOverlay">
+  <div class="modal">
+    <h2>Filter</h2>
+    <p class="modal-sub">Marka, tuman va holat bo'yicha filterlash</p>
+    <div class="field">
+      <label>Marka</label>
+      <select id="meningFilterMarka">
+        <option value="">Barcha markalar</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Tuman</label>
+      <select id="meningFilterTuman">
+        <option value="all">Barchasi</option>
+        <option value="buxoro">Buxoro</option>
+        <option value="kogon">Kogon</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Holat</label>
+      <select id="meningFilterHolat">
+        <option value="all">Barchasi</option>
+        <option value="faol">Faol</option>
+        <option value="tugagan">Muddati tugagan</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="meningFilterReset">Tozalash</button>
+      <button class="btn" id="meningFilterApply">Qo'llash</button>
     </div>
   </div>
 </div>
@@ -915,16 +957,28 @@ document.getElementById('olishConfirm').addEventListener('click', ()=>{
 // ===== MENING — faol (Kirim) VA muddati tugagan (Tugagan) qurilmalar
 // BITTA ro'yxatda ko'rsatiladi. Muddati tugaganlar pastda, alohida
 // (qizil) uslubda va cheklangan amallar bilan chiqadi. =====
+let meningTumanFilter = 'all';
+let meningMarkaFilter = '';
+let meningHolatFilter = 'all';
+
 function renderMening(){
   const isAdmin = currentUser.role === 'admin';
   const activeList = (isAdmin ? kirim.slice() : kirim.filter(d => normalize(d.login) === normalize(currentUser.login)))
     .map(d => Object.assign({}, d, { _expired: false }));
   const expiredList = (isAdmin ? tugaganlar.slice() : tugaganlar.filter(d => normalize(d.login) === normalize(currentUser.login)))
     .map(d => Object.assign({}, d, { _expired: true }));
-  const list = activeList.concat(expiredList);
+  let list = activeList.concat(expiredList);
+
+  const q = normalize(document.getElementById('meningSearch').value.trim());
+  if(meningHolatFilter === 'faol') list = list.filter(d => !d._expired);
+  else if(meningHolatFilter === 'tugagan') list = list.filter(d => d._expired);
+  if(meningTumanFilter !== 'all') list = list.filter(d => normalizeTuman(d.tuman) === meningTumanFilter);
+  if(meningMarkaFilter) list = list.filter(d => normalize(d.marka) === normalize(meningMarkaFilter));
+  if(q.length >= 2) list = list.filter(d => normalize(d['S/N']).includes(q));
+  document.getElementById('meningFilterDot').style.display = (meningTumanFilter!=='all' || meningMarkaFilter || meningHolatFilter!=='all') ? 'block' : 'none';
 
   const el = document.getElementById('meningResults');
-  if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${isAdmin ? "Hozircha hech kimda qurilma yo'q" : "Siz hali hech qanday qurilma olmagansiz"}</div>`; return; }
+  if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${q || meningMarkaFilter || meningTumanFilter!=='all' || meningHolatFilter!=='all' ? "Hech narsa topilmadi" : (isAdmin ? "Hozircha hech kimda qurilma yo'q" : "Siz hali hech qanday qurilma olmagansiz")}</div>`; return; }
 
   el.innerHTML = list.slice(0,150).map(d => {
     const expired = d._expired;
@@ -990,6 +1044,45 @@ function renderMening(){
     </div>`;
   }).join('');
 }
+
+// --- Mening qidiruv maydoni ---
+const meningSearch = document.getElementById('meningSearch');
+const meningSearchClear = document.getElementById('meningSearchClear');
+meningSearch.addEventListener('input', ()=>{ meningSearchClear.style.display = meningSearch.value?'flex':'none'; renderMening(); });
+meningSearchClear.addEventListener('click', ()=>{ meningSearch.value=''; meningSearchClear.style.display='none'; renderMening(); });
+
+// --- Mening filter oynasi (marka + tuman + holat) ---
+const meningFilterOverlay = document.getElementById('meningFilterOverlay');
+document.getElementById('meningFilterBtn').addEventListener('click', ()=>{
+  const isAdmin = currentUser.role === 'admin';
+  const sourceList = isAdmin ? kirim.concat(tugaganlar) : kirim.filter(d=>normalize(d.login)===normalize(currentUser.login)).concat(tugaganlar.filter(d=>normalize(d.login)===normalize(currentUser.login)));
+  const markaSel = document.getElementById('meningFilterMarka');
+  const uniqueMarkalar = Array.from(new Set(sourceList.map(d => (d.marka||'').toString().trim()).filter(Boolean))).sort();
+  markaSel.innerHTML = '<option value="">Barcha markalar</option>' +
+    uniqueMarkalar.map(m => `<option value="${escapeHtml(m)}"${m===meningMarkaFilter?' selected':''}>${escapeHtml(m)}</option>`).join('');
+  document.getElementById('meningFilterTuman').value = meningTumanFilter;
+  document.getElementById('meningFilterHolat').value = meningHolatFilter;
+  meningFilterOverlay.classList.add('show');
+});
+meningFilterOverlay.addEventListener('click', e=>{ if(e.target===meningFilterOverlay) meningFilterOverlay.classList.remove('show'); });
+document.getElementById('meningFilterApply').addEventListener('click', ()=>{
+  meningMarkaFilter = document.getElementById('meningFilterMarka').value;
+  meningTumanFilter = document.getElementById('meningFilterTuman').value;
+  meningHolatFilter = document.getElementById('meningFilterHolat').value;
+  meningFilterOverlay.classList.remove('show');
+  renderMening();
+});
+document.getElementById('meningFilterReset').addEventListener('click', ()=>{
+  meningMarkaFilter = '';
+  meningTumanFilter = 'all';
+  meningHolatFilter = 'all';
+  document.getElementById('meningFilterMarka').value = '';
+  document.getElementById('meningFilterTuman').value = 'all';
+  document.getElementById('meningFilterHolat').value = 'all';
+  meningFilterOverlay.classList.remove('show');
+  renderMening();
+});
+
 
 let qaytarishSeria = null;
 const qaytarishOverlay = document.getElementById('qaytarishOverlay');
