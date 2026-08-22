@@ -190,6 +190,8 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 .upload-slot .opt{color:#ffffff;font-size:9px;font-weight:700;position:absolute;top:6px;right:6px;background:rgba(20,30,60,.75);padding:2px 6px;border-radius:100px}
 .upload-slot input{display:none}
 .upload-slot .check{position:absolute;bottom:6px;right:6px;background:var(--ok);color:#ffffff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+.upload-slot .remove-btn{position:absolute;top:6px;left:6px;background:rgba(225,29,72,.92);color:#ffffff;border:none;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;cursor:pointer;z-index:3;padding:0;line-height:1}
+.upload-slot .remove-btn:active{transform:scale(.9)}
 
 .bg-progress{
   position:fixed;bottom:78px;left:50%;transform:translateX(-50%);z-index:25;
@@ -431,7 +433,7 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 <div class="overlay" id="olishOverlay">
   <div class="modal">
     <h2 id="olishTitle">Qurilmani olish</h2>
-    <p class="modal-sub">Manzil, muddat va talabnoma hujjatini kiriting</p>
+    <p class="modal-sub">Manzil va muddatni kiriting</p>
     <div class="field"><label>Manzil</label><input type="text" id="olishManzil" placeholder="Masalan: Amir temur ko'chasi 2- uy"></div>
     <div class="field">
       <label>Muddat (ma'lumot uchun — "necha soatga olingan" deb ko'rsatiladi)</label>
@@ -439,17 +441,6 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
         <button type="button" class="duration-btn" data-hours="24">1 kun<span class="d-sub">24 soat</span></button>
         <button type="button" class="duration-btn" data-hours="48">2 kun<span class="d-sub">48 soat</span></button>
         <button type="button" class="duration-btn" data-hours="72">3 kun<span class="d-sub">72 soat</span></button>
-      </div>
-    </div>
-    <div class="field">
-      <label>Talabnomani yukla</label>
-      <div class="upload-grid" style="grid-template-columns:1fr">
-        <label class="upload-slot" id="olishSlot">
-          <span class="req">Majburiy</span>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg>
-          <span>Talabnoma rasmini yuklash</span>
-          <input type="file" accept="image/*" id="olishFile">
-        </label>
       </div>
     </div>
     <div class="modal-actions">
@@ -857,19 +848,14 @@ function renderSklad(){
   }).join('');
 }
 
-let olishSeria = null, olishFileData = null, olishMuddatSoat = null;
+let olishSeria = null, olishMuddatSoat = null;
 const olishOverlay = document.getElementById('olishOverlay');
 function openOlish(seriaEnc){
   olishSeria = decodeURIComponent(seriaEnc);
-  olishFileData = null;
   olishMuddatSoat = null;
   document.getElementById('olishTitle').textContent = 'Qurilmani olish — ' + olishSeria;
   document.getElementById('olishManzil').value = '';
   document.querySelectorAll('#olishDurationGrid .duration-btn').forEach(b=>b.classList.remove('active'));
-  const slot = document.getElementById('olishSlot');
-  slot.classList.remove('filled');
-  slot.innerHTML = `<span class="req">Majburiy</span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg><span>Talabnoma rasmini yuklash</span><input type="file" accept="image/*" id="olishFile">`;
-  document.getElementById('olishFile').addEventListener('change', onOlishFile);
   olishOverlay.classList.add('show');
 }
 window.openOlish = openOlish;
@@ -880,15 +866,6 @@ document.querySelectorAll('#olishDurationGrid .duration-btn').forEach(btn=>{
     olishMuddatSoat = btn.dataset.hours;
   });
 });
-async function onOlishFile(e){
-  const file = e.target.files[0];
-  if(!file) return;
-  olishFileData = await fileToCompressedBase64(file, 1280);
-  const slot = document.getElementById('olishSlot');
-  slot.classList.add('filled');
-  slot.innerHTML = `<img src="${olishFileData}"><span class="check">✓</span><input type="file" accept="image/*" id="olishFile">`;
-  document.getElementById('olishFile').addEventListener('change', onOlishFile);
-}
 document.getElementById('olishCancel').addEventListener('click', ()=> olishOverlay.classList.remove('show'));
 olishOverlay.addEventListener('click', e=>{ if(e.target===olishOverlay) olishOverlay.classList.remove('show'); });
 
@@ -897,7 +874,6 @@ document.getElementById('olishConfirm').addEventListener('click', ()=>{
   const manzil = document.getElementById('olishManzil').value.trim();
   if(!manzil){ toast('Manzilni kiriting', 'error'); return; }
   if(!olishMuddatSoat){ toast('Muddatni tanlang', 'error'); return; }
-  if(!olishFileData){ toast('Talabnoma rasmini yuklang', 'error'); return; }
   const seria = olishSeria;
   const muddat_soat = olishMuddatSoat;
   const manzilVal = manzil;
@@ -922,7 +898,7 @@ document.getElementById('olishConfirm').addEventListener('click', ()=>{
   updateStats();
 
   bgTaskStart('Biriktirilmoqda: ' + seria);
-  postAction({ action:'olish', seria, login: currentUser.login, ism: currentUser.ism, role: currentUser.role, tuman: currentUser.tuman, manzil: manzilVal, muddat_soat, talabnoma_rasm: olishFileData })
+  postAction({ action:'olish', seria, login: currentUser.login, ism: currentUser.ism, role: currentUser.role, tuman: currentUser.tuman, manzil: manzilVal, muddat_soat })
     .then((res)=>{
       if(res.telegram_debug){ toast('TELEGRAM: ' + res.telegram_debug, 'error'); }
       // Fonda haqiqiy ma'lumot bilan sokin sinxronlaymiz
@@ -1341,9 +1317,22 @@ async function onInstallFile(e, idx, required){
   instFiles[idx] = data;
   const slot = document.getElementById(instSlotIds[idx]);
   slot.classList.add('filled');
-  slot.innerHTML = `<img src="${data}"><span class="check">✓</span><input type="file" accept="image/*">`;
+  slot.innerHTML = `<img src="${data}"><span class="check">✓</span><button type="button" class="remove-btn" onclick="removeInstImage(event, ${idx}, ${required})">✕</button><input type="file" accept="image/*">`;
   slot.querySelector('input').addEventListener('change', (e2)=>onInstallFile(e2, idx, required));
 }
+// Xato yuklangan rasmni o'chirib, slotni bo'sh (yuklash mumkin) holatga qaytaradi.
+// stopPropagation shart — chunki slot <label> ichida, aks holda tugma bosilganda
+// fayl tanlash oynasi ham ochilib ketardi.
+function removeInstImage(e, idx, required){
+  e.preventDefault();
+  e.stopPropagation();
+  instFiles[idx] = null;
+  const slot = document.getElementById(instSlotIds[idx]);
+  slot.classList.remove('filled');
+  slot.innerHTML = `<span class="${required?'req':'opt'}">${required?'Majburiy':'Ixtiyoriy'}</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg><span>${idx+1}-rasm</span><input type="file" accept="image/*">`;
+  slot.querySelector('input').addEventListener('change', (e2)=>onInstallFile(e2, idx, required));
+}
+window.removeInstImage = removeInstImage;
 
 function openInstall(seriaEnc){
   installSeria = decodeURIComponent(seriaEnc);
