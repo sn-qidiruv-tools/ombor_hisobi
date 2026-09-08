@@ -116,6 +116,19 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 }
 .icon-btn:hover{border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.2)}
 
+/* Panel ichidagi (och fon ustidagi) filter tugmasi — header'dagi .icon-btn'dan
+   ATAYLAB alohida: u shaffof-oq bo'lgani uchun och fon ustida ko'rinmay
+   qolgan edi. Bu esa aniq chegara va rang bilan ko'rinarli. */
+.filter-btn{
+  background:var(--surface-2);border:1.5px solid var(--border-hi);border-radius:11px;width:38px;height:38px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;color:var(--blue);cursor:pointer;transition:.15s;position:relative;
+}
+.filter-btn:hover{background:#e7efff;border-color:var(--blue)}
+.filter-btn .filter-dot{
+  display:none;position:absolute;top:-3px;right:-3px;width:11px;height:11px;border-radius:50%;
+  background:var(--blue);border:2px solid var(--surface);
+}
+
 .stat-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:-30px 0 18px}
 .stat-box{
   background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:11px 10px;
@@ -181,11 +194,13 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 .ticket-tag.owner{color:var(--violet)}
 
 .action-row{display:flex;flex-wrap:wrap;gap:7px;padding:0 14px 14px}
+.action-row.tight{padding-bottom:0}
 .pill-btn{
   flex:1 1 0;min-width:84px;border:none;border-radius:11px;padding:10px 8px;font-size:11.5px;font-weight:700;
   cursor:pointer;font-family:inherit;transition:transform .12s;display:flex;align-items:center;justify-content:center;gap:5px;
   white-space:nowrap;
 }
+.pill-btn.compact{flex:0 0 auto;padding:8px 12px;text-decoration:none}
 .pill-btn:active{transform:scale(.97)}
 .pill-btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
 .pill-green{background:linear-gradient(120deg,#16a34a,#22c55e);color:#fff;box-shadow:0 6px 14px rgba(22,163,74,.28)}
@@ -393,9 +408,9 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
           <span class="search-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
           <input type="text" id="skladSearch" placeholder="S/N bo'yicha qidirish...">
           <button class="search-clear" id="skladSearchClear">✕</button>
-          <button class="icon-btn" id="skladFilterBtn" title="Filter" style="flex-shrink:0;position:relative">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
-            <span id="skladFilterDot" style="display:none;position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--cyan)"></span>
+          <button class="filter-btn" id="skladFilterBtn" title="Filter">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+            <span class="filter-dot" id="skladFilterDot"></span>
           </button>
         </div>
         <div id="skladResults"></div>
@@ -407,9 +422,9 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
           <span class="search-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
           <input type="text" id="meningSearch" placeholder="S/N bo'yicha qidirish...">
           <button class="search-clear" id="meningSearchClear">✕</button>
-          <button class="icon-btn" id="meningFilterBtn" title="Filter" style="flex-shrink:0;position:relative">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
-            <span id="meningFilterDot" style="display:none;position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--cyan)"></span>
+          <button class="filter-btn" id="meningFilterBtn" title="Filter">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+            <span class="filter-dot" id="meningFilterDot"></span>
           </button>
         </div>
         <div id="meningResults"></div>
@@ -421,6 +436,10 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
           <span class="search-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
           <input type="text" id="tarixSearch" placeholder="S/N bo'yicha qidirish...">
           <button class="search-clear" id="tarixSearchClear">✕</button>
+          <button class="filter-btn" id="tarixFilterBtn" title="Filter">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+            <span class="filter-dot" id="tarixFilterDot"></span>
+          </button>
         </div>
         <div id="tarixResults"></div>
       </div>
@@ -543,6 +562,31 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
     <div class="modal-actions">
       <button class="btn btn-secondary" id="meningFilterReset">Tozalash</button>
       <button class="btn" id="meningFilterApply">Qo'llash</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="tarixFilterOverlay">
+  <div class="modal">
+    <h2>Filter</h2>
+    <p class="modal-sub">Tuman va xodim bo'yicha filterlash</p>
+    <div class="field">
+      <label>Tuman</label>
+      <select id="tarixFilterTuman">
+        <option value="all">Barchasi</option>
+        <option value="buxoro">Buxoro</option>
+        <option value="kogon">Kogon</option>
+      </select>
+    </div>
+    <div class="field" id="tarixFilterXodimField">
+      <label>Xodim</label>
+      <select id="tarixFilterXodim">
+        <option value="">Barchasi</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="tarixFilterReset">Tozalash</button>
+      <button class="btn" id="tarixFilterApply">Qo'llash</button>
     </div>
   </div>
 </div>
@@ -1130,21 +1174,33 @@ function renderMening(){
     let actionsHtml;
     if(expired && isAdmin){
       actionsHtml = `
+      <div class="action-row">
         <button class="pill-btn pill-green" onclick="openFaollashtirish('${encodeURIComponent(d['S/N'])}')">🔓 Faollashtirish</button>
-        <button class="pill-btn pill-red" onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">↩ Qaytarish</button>`;
+        <button class="pill-btn pill-red" onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">↩ Qaytarish</button>
+      </div>`;
     } else if(expired && !isAdmin){
-      actionsHtml = `<div class="ticket-note blocked" style="margin:0">⛔ Muddat tugadi — hech qanday amal bajara olmaysiz, admin bilan bog'laning</div>`;
+      actionsHtml = `<div class="ticket-note blocked" style="margin:0 14px 12px">⛔ Muddat tugadi — hech qanday amal bajara olmaysiz, admin bilan bog'laning</div>`;
     } else if(isAdmin){
+      // "Muddatni tugatish" tugmasi ATAYLAB alohida qatorda — ekran kengligi
+      // qanday o'zgarmasin (flex-wrap orqali boshqa tugmalar bilan qo'shilib
+      // yoki chapga-o'ngga sirg'alib ketmasligi uchun) doim pastda, to'liq
+      // enida turadi.
       actionsHtml = `
+      <div class="action-row tight">
         <button class="pill-btn pill-green" ${returnPending?'disabled':''} onclick="openInstall('${encodeURIComponent(d['S/N'])}')">✓ O'rnatish</button>
         <button class="pill-btn pill-blue" onclick="openYonaltirish('${encodeURIComponent(d['S/N'])}')">↗ Yo'naltirish</button>
         <button class="pill-btn pill-red" onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">↩ Qaytarish</button>
-        <button class="pill-btn pill-outline-danger" onclick="muddatTugatish('${encodeURIComponent(d['S/N'])}')">⏰ Muddatni tugatish</button>`;
+      </div>
+      <div class="action-row">
+        <button class="pill-btn pill-outline-danger" onclick="muddatTugatish('${encodeURIComponent(d['S/N'])}')">⏰ Muddatni tugatish</button>
+      </div>`;
     } else {
       const returnBtnLabel = returnPending ? "⏳ Yuborilgan" : "↩ Qaytarish";
       actionsHtml = `
+      <div class="action-row">
         <button class="pill-btn pill-green" ${returnPending?'disabled':''} onclick="openInstall('${encodeURIComponent(d['S/N'])}')">✓ O'rnatish</button>
-        <button class="pill-btn pill-red" ${returnPending?'disabled':''} onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">${returnBtnLabel}</button>`;
+        <button class="pill-btn pill-red" ${returnPending?'disabled':''} onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">${returnBtnLabel}</button>
+      </div>`;
     }
 
     return `
@@ -1168,9 +1224,7 @@ function renderMening(){
       </div>
       ${!isAdmin && !expired && returnRejected ? `<div class="ticket-note rejected">✕ So'nggi qaytarish so'rovingiz rad etildi</div>` : ''}
       ${!isAdmin && !expired && muddatRejected ? `<div class="ticket-note rejected">✕ So'nggi muddat so'rovingiz rad etildi</div>` : ''}
-      <div class="action-row">
-        ${actionsHtml}
-      </div>
+      ${actionsHtml}
     </div>`;
   }).join('');
 }
@@ -1801,13 +1855,53 @@ const tarixSearchClear = document.getElementById('tarixSearchClear');
 tarixSearch.addEventListener('input', ()=>{ tarixSearchClear.style.display = tarixSearch.value?'flex':'none'; renderTarix(); });
 tarixSearchClear.addEventListener('click', ()=>{ tarixSearch.value=''; tarixSearchClear.style.display='none'; renderTarix(); });
 
+// --- Tarix filter (Tuman hammaga, Xodim FAQAT admin uchun) ---
+let tarixTumanFilter = 'all';
+let tarixXodimFilter = '';
+const tarixFilterOverlay = document.getElementById('tarixFilterOverlay');
+document.getElementById('tarixFilterBtn').addEventListener('click', ()=>{
+  const isAdmin = currentUser.role === 'admin';
+  document.getElementById('tarixFilterXodimField').style.display = isAdmin ? 'block' : 'none';
+  if(isAdmin){
+    const sel = document.getElementById('tarixFilterXodim');
+    const uniqueLogins = Array.from(new Set(chiqim.map(d => (d.login||'').toString().trim()).filter(Boolean)));
+    const optsHtml = uniqueLogins.map(login => {
+      const emp = employees.find(e => normalize(e.LOGIN) === normalize(login));
+      const label = emp ? emp.ISM : login;
+      return `<option value="${escapeHtml(login)}"${login===tarixXodimFilter?' selected':''}>${escapeHtml(label)}</option>`;
+    }).join('');
+    sel.innerHTML = '<option value="">Barchasi</option>' + optsHtml;
+  }
+  document.getElementById('tarixFilterTuman').value = tarixTumanFilter;
+  tarixFilterOverlay.classList.add('show');
+});
+tarixFilterOverlay.addEventListener('click', e=>{ if(e.target===tarixFilterOverlay) tarixFilterOverlay.classList.remove('show'); });
+document.getElementById('tarixFilterApply').addEventListener('click', ()=>{
+  tarixTumanFilter = document.getElementById('tarixFilterTuman').value;
+  tarixXodimFilter = currentUser.role === 'admin' ? document.getElementById('tarixFilterXodim').value : '';
+  tarixFilterOverlay.classList.remove('show');
+  renderTarix();
+});
+document.getElementById('tarixFilterReset').addEventListener('click', ()=>{
+  tarixTumanFilter = 'all';
+  tarixXodimFilter = '';
+  document.getElementById('tarixFilterTuman').value = 'all';
+  document.getElementById('tarixFilterXodim').value = '';
+  tarixFilterOverlay.classList.remove('show');
+  renderTarix();
+});
+
 function renderTarix(){
   const q = normalize(tarixSearch.value.trim());
   const isAdmin = currentUser.role === 'admin';
   let list = (isAdmin ? chiqim.slice() : chiqim.filter(d => normalize(d.login) === normalize(currentUser.login))).reverse();
+  if(tarixTumanFilter !== 'all') list = list.filter(d => normalizeTuman(d.tuman) === tarixTumanFilter);
+  if(isAdmin && tarixXodimFilter) list = list.filter(d => normalize(d.login) === normalize(tarixXodimFilter));
   if(q.length >= 2) list = list.filter(d => normalize(d['S/N']).includes(q));
+  document.getElementById('tarixFilterDot').style.display = (tarixTumanFilter!=='all' || tarixXodimFilter) ? 'block' : 'none';
   const el = document.getElementById('tarixResults');
-  if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${q ? "Topilmadi" : (isAdmin ? "Hali hech qanday qurilma o'rnatilmagan" : "Siz hali hech narsa o'rnatmagansiz")}</div>`; return; }
+  const filterActive = q || tarixTumanFilter!=='all' || tarixXodimFilter;
+  if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${filterActive ? "Topilmadi" : (isAdmin ? "Hali hech qanday qurilma o'rnatilmagan" : "Siz hali hech narsa o'rnatmagansiz")}</div>`; return; }
   el.innerHTML = list.slice(0,150).map(d => `
     <div class="ticket">
       <div class="ticket-main">
@@ -1823,13 +1917,17 @@ function renderTarix(){
           <div class="ticket-meta">
             <span>👤 ${escapeHtml(d.Ism||d.login||'')}</span>
             <span>📅 ${escapeHtml(d.sana||'')}</span>
-            ${d.Lokatsiya ? `<span>📍 <a href="https://www.google.com/maps?q=${encodeURIComponent(d.Lokatsiya)}" target="_blank" style="color:var(--cyan)">Xaritada</a></span>` : ''}
+            ${d.Lokatsiya ? `<span>📍 ${escapeHtml(d.Lokatsiya)}</span>` : ''}
           </div>
         </div>
         <div class="ticket-badges">
           <span class="badge badge-tuman${normalizeTuman(d.tuman)==='kogon'?' kogon':''}">${tumanLabel(d.tuman)}</span>
         </div>
       </div>
+      ${d.Lokatsiya ? `
+      <div class="action-row">
+        <a class="pill-btn pill-blue compact" href="https://www.google.com/maps?q=${encodeURIComponent(d.Lokatsiya)}" target="_blank">🗺 Xaritadan ko'rish</a>
+      </div>` : ''}
     </div>`).join('');
 }
 
