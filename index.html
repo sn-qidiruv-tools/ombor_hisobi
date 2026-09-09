@@ -348,6 +348,7 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 }
 .badge-icon-btn:active{transform:scale(.92)}
 .badge-icon-btn.pending{color:var(--text-dim);background:var(--surface-2);border-color:var(--border);cursor:default}
+.badge-icon-btn.danger{border-color:rgba(225,29,72,.35);background:rgba(225,29,72,.10);color:#e11d48}
 </style>
 </head>
 <body>
@@ -864,6 +865,13 @@ function fileToCompressedBase64(file, maxDim){
 async function loadAll(){
   try{
     const data = await fetchJson(BOOTSTRAP_URL);
+    // Server kutilmagan xatolikda ham to'g'ri JSON qaytaradi, lekin
+    // { success:false, error:... } ko'rinishida — bunday holatda mavjud
+    // ma'lumotlarni BO'SH massivlar bilan almashtirib yubormaymiz, aks
+    // holda ekran bir zumga "hech narsa yo'q" bo'lib ko'rinib ketadi.
+    if(data && data.success === false){
+      throw new Error(data.error || "Server xatoligi");
+    }
     employees = data.employees || employees;
     sklad = data.sklad || []; kirim = data.kirim || []; chiqim = data.chiqim || []; sorovlar = data.sorovlar || []; tugaganlar = data.tugaganlar || [];
   }catch(err){
@@ -1171,6 +1179,15 @@ function renderMening(){
     const returnPending = !!(latestReturn && (latestReturn.holat||'').trim() === 'kutilmoqda');
     const returnRejected = !!(latestReturn && (latestReturn.holat||'').trim() === 'rad etilgan');
 
+    // --- Admin uchun: muddatni majburan tugatish — endi kichik burchak
+    // tugmasi (X), badge'lar qatorida turadi, alohida qator egallamaydi ---
+    let adminEndBtnHtml = '';
+    if(isAdmin && !expired){
+      adminEndBtnHtml = `<button class="badge-icon-btn danger" title="Muddatni majburan tugatish" onclick="muddatTugatish('${encodeURIComponent(d['S/N'])}')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>`;
+    }
+
     let actionsHtml;
     if(expired && isAdmin){
       actionsHtml = `
@@ -1181,18 +1198,11 @@ function renderMening(){
     } else if(expired && !isAdmin){
       actionsHtml = `<div class="ticket-note blocked" style="margin:0 14px 12px">⛔ Muddat tugadi — hech qanday amal bajara olmaysiz, admin bilan bog'laning</div>`;
     } else if(isAdmin){
-      // "Muddatni tugatish" tugmasi ATAYLAB alohida qatorda — ekran kengligi
-      // qanday o'zgarmasin (flex-wrap orqali boshqa tugmalar bilan qo'shilib
-      // yoki chapga-o'ngga sirg'alib ketmasligi uchun) doim pastda, to'liq
-      // enida turadi.
       actionsHtml = `
-      <div class="action-row tight">
+      <div class="action-row">
         <button class="pill-btn pill-green" ${returnPending?'disabled':''} onclick="openInstall('${encodeURIComponent(d['S/N'])}')">✓ O'rnatish</button>
         <button class="pill-btn pill-blue" onclick="openYonaltirish('${encodeURIComponent(d['S/N'])}')">↗ Yo'naltirish</button>
         <button class="pill-btn pill-red" onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">↩ Qaytarish</button>
-      </div>
-      <div class="action-row">
-        <button class="pill-btn pill-outline-danger" onclick="muddatTugatish('${encodeURIComponent(d['S/N'])}')">⏰ Muddatni tugatish</button>
       </div>`;
     } else {
       const returnBtnLabel = returnPending ? "⏳ Yuborilgan" : "↩ Qaytarish";
@@ -1220,6 +1230,7 @@ function renderMening(){
           ${expired ? `<span class="badge badge-expired">Muddati tugagan</span>` : `<span class="badge badge-tuman${tumanCls}">${tumanLabel(d.tuman)}</span>`}
           ${muddatText ? `<span class="badge badge-duration">${muddatText}</span>` : ''}
           ${muddatBtnHtml}
+          ${adminEndBtnHtml}
         </div>
       </div>
       ${!isAdmin && !expired && returnRejected ? `<div class="ticket-note rejected">✕ So'nggi qaytarish so'rovingiz rad etildi</div>` : ''}
