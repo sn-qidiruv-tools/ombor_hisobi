@@ -1042,7 +1042,7 @@ function renderSklad(){
   const el = document.getElementById('skladResults');
   if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${q ? "Hech narsa topilmadi" : "Skladda qurilma yo'q"}</div>`; return; }
   const isAdmin = currentUser.role === 'admin';
-  el.innerHTML = list.slice(0,150).map(d => {
+  el.innerHTML = list.slice(0,3000).map(d => {
     const ownTuman = normalizeTuman(d.tuman) === normalizeTuman(currentUser.tuman);
     const canTake = isAdmin || ownTuman;
     const tumanCls = normalizeTuman(d.tuman) === 'kogon' ? ' kogon' : '';
@@ -1157,7 +1157,7 @@ function renderMening(){
   const el = document.getElementById('meningResults');
   if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${q || meningMarkaFilter || meningTumanFilter!=='all' || meningHolatFilter!=='all' ? "Hech narsa topilmadi" : (isAdmin ? "Hozircha hech kimda qurilma yo'q" : "Siz hali hech qanday qurilma olmagansiz")}</div>`; return; }
 
-  el.innerHTML = list.slice(0,150).map(d => {
+  el.innerHTML = list.slice(0,3000).map(d => {
     const expired = d._expired;
     const isOwner = normalize(d.login) === normalize(currentUser.login);
     const muddatText = muddatInfoText(d);
@@ -1913,7 +1913,7 @@ function renderTarix(){
   const el = document.getElementById('tarixResults');
   const filterActive = q || tarixTumanFilter!=='all' || tarixXodimFilter;
   if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${filterActive ? "Topilmadi" : (isAdmin ? "Hali hech qanday qurilma o'rnatilmagan" : "Siz hali hech narsa o'rnatmagansiz")}</div>`; return; }
-  el.innerHTML = list.slice(0,150).map(d => `
+  el.innerHTML = list.slice(0,3000).map(d => `
     <div class="ticket">
       <div class="ticket-main">
         <div class="ticket-icon tone-d">${DEVICE_ICON_SVG}</div>
