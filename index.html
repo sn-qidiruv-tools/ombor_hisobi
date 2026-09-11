@@ -257,6 +257,12 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 .modal h2{margin:0 0 4px;font-size:18px;font-weight:700}
 .modal-sub{color:var(--text-dim);font-size:12.5px;margin:0 0 18px}
 .modal-actions{display:flex;gap:10px;margin-top:18px}
+/* O'rnatish kabi uzun formalarda tugmalar tepada, doim ko'rinadigan (sticky)
+   holatda turadi — pastgacha aylantirmasdan ham tasdiqlash/bekor qilish mumkin */
+.modal-actions-sticky{
+  position:sticky;top:0;z-index:5;margin:0 -22px 16px;padding:14px 22px;
+  background:var(--panel);border-bottom:1px solid var(--border);
+}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
 .duration-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
@@ -633,6 +639,10 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 
 <div class="overlay" id="installOverlay">
   <div class="modal">
+    <div class="modal-actions modal-actions-sticky">
+      <button class="btn btn-secondary" id="installCancel">Bekor qilish</button>
+      <button class="btn" id="installConfirm">Tasdiqlash</button>
+    </div>
     <h2>Qurilma o'rnatildi</h2>
     <p class="modal-sub">O'rnatish ma'lumotlarini va rasmlarni to'ldiring</p>
     <div style="display:flex;gap:10px">
@@ -648,7 +658,7 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
       <input type="text" id="installMasofa" placeholder="Masalan: 120" inputmode="numeric" pattern="[0-9]*">
     </div>
     <div class="field">
-      <label>Joylashuv</label>
+      <label>Joylashuv <span style="color:var(--danger)">*</span></label>
       <button type="button" class="loc-btn" id="locBtn">📍 Joylashuvni belgilash</button>
     </div>
     <div class="field">
@@ -659,10 +669,6 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
         <label class="upload-slot" id="instSlot3"><span class="opt">Ixtiyoriy</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg><span>3-rasm</span><input type="file" accept="image/*"></label>
         <label class="upload-slot" id="instSlot4"><span class="opt">Ixtiyoriy</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg><span>4-rasm</span><input type="file" accept="image/*"></label>
       </div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" id="installCancel">Bekor qilish</button>
-      <button class="btn" id="installConfirm">Tasdiqlash</button>
     </div>
   </div>
 </div>
@@ -675,6 +681,18 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
     <div class="modal-actions">
       <button class="btn btn-secondary" id="qaytarishCancel">Bekor qilish</button>
       <button class="btn" id="qaytarishConfirm">Qaytarish</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="ornatishBekorOverlay">
+  <div class="modal">
+    <h2>O'rnatishni bekor qilish</h2>
+    <p class="modal-sub">Qurilma o'rnatgan xodimning "Mening" bo'limiga qaytadi, Telegram xabari ham yangilanadi.</p>
+    <div class="field"><label>Sabab</label><input type="text" id="ornatishBekorSabab" placeholder="Masalan: noto'g'ri manzilga o'rnatilgan"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="ornatishBekorCancel">Bekor qilish</button>
+      <button class="btn" id="ornatishBekorConfirm">Tasdiqlash</button>
     </div>
   </div>
 </div>
@@ -803,9 +821,20 @@ function fetchWithTimeout_(url, options, timeoutMs){
 }
 
 async function fetchJson(url){
-  const resp = await fetchWithTimeout_(url, { method:'GET', cache:'no-store' }, 20000);
-  if(!resp.ok) throw new Error('HTTP '+resp.status);
-  return await resp.json();
+  // Xavfsiz avtomatik qayta urinish — bu FAQAT o'qish (GET) so'rovi, hech
+  // narsani o'zgartirmaydi, shuning uchun takrorlansa ham xavfsiz. Vaqtinchalik
+  // tarmoq uzilishlarida (masalan Telegram WebView tarmoqni almashtirganda)
+  // foydalanuvchi "Yangilash"ni qo'lda bosishiga hojat qolmaydi.
+  try {
+    const resp = await fetchWithTimeout_(url, { method:'GET', cache:'no-store' }, 15000);
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    return await resp.json();
+  } catch(firstErr) {
+    await new Promise(r=>setTimeout(r, 1200));
+    const resp2 = await fetchWithTimeout_(url, { method:'GET', cache:'no-store' }, 15000);
+    if(!resp2.ok) throw new Error('HTTP '+resp2.status);
+    return await resp2.json();
+  }
 }
 
 async function postAction(payload){
@@ -1707,6 +1736,7 @@ document.getElementById('installConfirm').addEventListener('click', ()=>{
   const port = document.getElementById('installPort').value.trim();
   const masofa = document.getElementById('installMasofa').value.trim();
   if(!manzilBase || !olt || !port || !masofa){ toast("Barcha maydonlarni to'ldiring", 'error'); return; }
+  if(!pickedLatLng){ toast("Joylashuvni xaritadan belgilang", 'error'); return; }
   if(!instFiles[0] || !instFiles[1]){ toast('Kamida 2 ta majburiy rasmni yuklang', 'error'); return; }
   const seria = installSeria;
   const rasmlar = instFiles.filter(Boolean);
@@ -1928,7 +1958,14 @@ function renderTarix(){
   const el = document.getElementById('tarixResults');
   const filterActive = q || tarixTumanFilter!=='all' || tarixXodimFilter;
   if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${filterActive ? "Topilmadi" : (isAdmin ? "Hali hech qanday qurilma o'rnatilmagan" : "Siz hali hech narsa o'rnatmagansiz")}</div>`; return; }
-  el.innerHTML = list.slice(0,3000).map(d => `
+  el.innerHTML = list.slice(0,3000).map(d => {
+    const mapLinkHtml = d.Lokatsiya
+      ? `<a class="pill-btn pill-blue compact" href="https://www.google.com/maps?q=${encodeURIComponent(d.Lokatsiya)}" target="_blank">🗺 Xaritadan ko'rish</a>`
+      : '';
+    const cancelBtnHtml = isAdmin
+      ? `<button class="pill-btn pill-red compact" onclick="openOrnatishBekor('${encodeURIComponent(d['S/N'])}')">↩ Bekor qilish</button>`
+      : '';
+    return `
     <div class="ticket">
       <div class="ticket-main">
         <div class="ticket-icon tone-d">${DEVICE_ICON_SVG}</div>
@@ -1950,12 +1987,51 @@ function renderTarix(){
           <span class="badge badge-tuman${normalizeTuman(d.tuman)==='kogon'?' kogon':''}">${tumanLabel(d.tuman)}</span>
         </div>
       </div>
-      ${d.Lokatsiya ? `
-      <div class="action-row">
-        <a class="pill-btn pill-blue compact" href="https://www.google.com/maps?q=${encodeURIComponent(d.Lokatsiya)}" target="_blank">🗺 Xaritadan ko'rish</a>
-      </div>` : ''}
-    </div>`).join('');
+      ${(mapLinkHtml || cancelBtnHtml) ? `<div class="action-row">${mapLinkHtml}${cancelBtnHtml}</div>` : ''}
+    </div>`;
+  }).join('');
 }
+
+// ============ ADMIN: O'RNATISHNI BEKOR QILISH ============
+let ornatishBekorSeria = null;
+const ornatishBekorOverlay = document.getElementById('ornatishBekorOverlay');
+function openOrnatishBekor(seriaEnc){
+  ornatishBekorSeria = decodeURIComponent(seriaEnc);
+  document.getElementById('ornatishBekorSabab').value = '';
+  ornatishBekorOverlay.classList.add('show');
+}
+window.openOrnatishBekor = openOrnatishBekor;
+document.getElementById('ornatishBekorCancel').addEventListener('click', ()=> ornatishBekorOverlay.classList.remove('show'));
+ornatishBekorOverlay.addEventListener('click', e=>{ if(e.target===ornatishBekorOverlay) ornatishBekorOverlay.classList.remove('show'); });
+
+// ==== "O'rnatishni bekor qilish" — OPTIMISTIK: Chiqim -> Kirim darhol ko'chadi,
+// o'sha xodimning "Mening" bo'limida qayta paydo bo'ladi ====
+document.getElementById('ornatishBekorConfirm').addEventListener('click', ()=>{
+  const sabab = document.getElementById('ornatishBekorSabab').value.trim();
+  if(!sabab){ toast('Sababni kiriting', 'error'); return; }
+  const seria = ornatishBekorSeria;
+  ornatishBekorOverlay.classList.remove('show');
+
+  const idx = chiqim.findIndex(d => d['S/N'] === seria);
+  const removed = idx > -1 ? chiqim.splice(idx, 1)[0] : null;
+  if(removed){
+    kirim.push({
+      'S/N': removed['S/N'], marka: removed.marka, manzil: removed.manzil,
+      login: removed.login, sana: todaySanaClient(), tuman: removed.tuman,
+      MsgId: removed.MsgId || '', MsgChatId: removed.MsgChatId || '',
+      Ism: removed.Ism, MuddatSoat: removed.MuddatSoat || '24',
+      OlinganVaqt: new Date().toISOString()
+    });
+  }
+  renderActive();
+  updateStats();
+
+  bgTaskStart("O'rnatish bekor qilinmoqda: " + seria);
+  postAction({ action:'ornatish_bekor', seria, sabab, role: currentUser.role, login: currentUser.login })
+    .then(()=>{ loadAll().then(()=>{ renderActive(); updateStats(); }); })
+    .catch(err=>{ toast(err.message, 'error'); loadAll().then(()=>{ renderActive(); updateStats(); }); })
+    .finally(()=>{ bgTaskEnd(); });
+});
 
 const addOverlay = document.getElementById('addOverlay');
 document.getElementById('addBtn').addEventListener('click', ()=>{
