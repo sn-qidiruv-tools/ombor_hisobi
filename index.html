@@ -820,21 +820,28 @@ function fetchWithTimeout_(url, options, timeoutMs){
     .finally(()=> clearTimeout(timer));
 }
 
+// TEZLASHTIRISH VA MUSTAHKAMLIK: bu FAQAT o'qish (GET) so'rovi, hech
+// narsani o'zgartirmaydi, shuning uchun necha marta takrorlansa ham
+// xavfsiz. Avval bor-yo'g'i 2 marta urinilardi (bittasi + bitta qayta
+// urinish) — Apps Script vaqtincha band bo'lganda (bir nechta odam bir
+// vaqtda kirganda) shu 2 urinish ham yetmasdi va "Ma'lumotlarni
+// yuklashda xatolik" chiqib qolardi. Endi 4 marta, orada kutish vaqti
+// har safar oshib boradi (400ms, 1200ms, 2500ms) — vaqtinchalik
+// bandlik deyarli har doim shu ichida tuzaladi.
 async function fetchJson(url){
-  // Xavfsiz avtomatik qayta urinish — bu FAQAT o'qish (GET) so'rovi, hech
-  // narsani o'zgartirmaydi, shuning uchun takrorlansa ham xavfsiz. Vaqtinchalik
-  // tarmoq uzilishlarida (masalan Telegram WebView tarmoqni almashtirganda)
-  // foydalanuvchi "Yangilash"ni qo'lda bosishiga hojat qolmaydi.
-  try {
-    const resp = await fetchWithTimeout_(url, { method:'GET', cache:'no-store' }, 15000);
-    if(!resp.ok) throw new Error('HTTP '+resp.status);
-    return await resp.json();
-  } catch(firstErr) {
-    await new Promise(r=>setTimeout(r, 1200));
-    const resp2 = await fetchWithTimeout_(url, { method:'GET', cache:'no-store' }, 15000);
-    if(!resp2.ok) throw new Error('HTTP '+resp2.status);
-    return await resp2.json();
+  const delays = [0, 400, 1200, 2500];
+  let lastErr;
+  for(let i = 0; i < delays.length; i++){
+    if(delays[i]) await new Promise(r=>setTimeout(r, delays[i]));
+    try{
+      const resp = await fetchWithTimeout_(url, { method:'GET', cache:'no-store' }, 15000);
+      if(!resp.ok) throw new Error('HTTP '+resp.status);
+      return await resp.json();
+    }catch(err){
+      lastErr = err;
+    }
   }
+  throw lastErr;
 }
 
 async function postAction(payload){
@@ -906,6 +913,9 @@ function fileToCompressedBase64(file, maxDim){
   });
 }
 
+// loadAll natijani true/false qaytaradi — muvaffaqiyatli yuklandimi yoki
+// yo'qmi, chaqiruvchi shu asosda qaror qabul qiladi (masalan initApp
+// bo'sh ekran o'rniga "qayta urinish" tugmasini ko'rsatadi).
 async function loadAll(){
   try{
     const data = await fetchJson(BOOTSTRAP_URL);
@@ -918,20 +928,34 @@ async function loadAll(){
     }
     employees = data.employees || employees;
     sklad = data.sklad || []; kirim = data.kirim || []; chiqim = data.chiqim || []; sorovlar = data.sorovlar || []; tugaganlar = data.tugaganlar || [];
+    return true;
   }catch(err){
     toast("Ma'lumotlarni yuklashda xatolik", 'error');
+    return false;
   }
 }
 
 // ============ ILOVAGA KIRISH — FAQAT MA'LUMOT TO'LIQ YUKLANGANDAN KEYIN ============
 // Login (yoki avtomatik kirish) ekrani hech qachon ma'lumot yuklanishidan
 // oldin ko'rsatilmaydi — foydalanuvchi bo'sh/eskirgan ro'yxat ko'rmasligi kerak.
+// MUHIM: agar 4 marta urinishdan keyin ham yuklanmasa (masalan internet
+// butunlay yo'q), foydalanuvchi bo'sh/abadiy "yuklanmoqda" holatida
+// qolib ketmasligi uchun aniq xabar va "Qayta urinish" tugmasi ko'rsatiladi.
 async function initApp(){
   // TEZLASHTIRISH: avval ikkita alohida so'rov (bootstrap + employees) yuborilardi —
   // har birining o'z "sovuq boshlanish" kechikishi bo'lardi. Endi employees ham
   // bootstrap javobi ichida keladi — bitta so'rov, tezroq yuklanish.
-  await loadAll();
+  const ok = await loadAll();
   document.getElementById('loadingScreen').style.display = 'none';
+  if(!ok){
+    const ls = document.getElementById('loadingScreen');
+    ls.innerHTML = `
+      <div class="loading-text" style="text-align:center;max-width:260px">Ma'lumotlarni yuklab bo'lmadi.<br>Internetni tekshirib, qayta urining.</div>
+      <button class="btn" style="width:auto;padding:11px 22px" onclick="location.reload()">↻ Qayta urinish</button>
+    `;
+    ls.style.display = 'flex';
+    return;
+  }
   const saved = localStorage.getItem('sklad_user');
   if(saved){
     try{ currentUser = JSON.parse(saved); enterApp(); return; }catch(e){}
@@ -991,10 +1015,10 @@ function enterApp(){
 }
 
 async function refreshData(){
-  await loadAll();
+  const ok = await loadAll();
   renderActive();
   updateStats();
-  toast('Yangilandi', 'success');
+  if(ok) toast('Yangilandi', 'success');
 }
 document.getElementById('refreshBtnTop').addEventListener('click', refreshData);
 
