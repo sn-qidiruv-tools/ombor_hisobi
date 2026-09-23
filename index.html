@@ -315,6 +315,8 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 /* Foydalanuvchining o'z joylashuvi belgisi (ko'k nuqta) */
 .my-location-dot{width:16px;height:16px;border-radius:50%;background:var(--blue);border:3px solid #ffffff;box-shadow:0 0 0 2px rgba(47,111,237,.5), 0 2px 6px rgba(20,30,60,.3)}
 .map-hint{font-size:12px;color:var(--text-dim);text-align:center}
+.map-accuracy-warn{font-size:11.5px;font-weight:700;text-align:center;color:var(--warn);padding:6px 10px;background:rgba(251,191,36,.12);border-radius:9px}
+.map-accuracy-ok{font-size:11.5px;font-weight:700;text-align:center;color:var(--ok);padding:6px 10px;background:rgba(79,209,165,.1);border-radius:9px}
 .map-coords{font-family:var(--mono);font-size:12.5px;text-align:center;color:var(--cyan)}
 
 /* ===== Xabarlar (so'rovlar) — admin ===== */
@@ -744,6 +746,7 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
       </button>
     </div>
     <div class="map-coords" id="mapCoordsText">Aniqlanmoqda...</div>
+    <div class="map-accuracy-warn" id="mapAccuracyWarn" style="display:none"></div>
     <div class="modal-actions">
       <button class="btn btn-secondary" id="mapCancel">Bekor qilish</button>
       <button class="btn" id="mapConfirm">Joylashuvni tasdiqlash</button>
@@ -958,9 +961,89 @@ async function initApp(){
   }
   const saved = localStorage.getItem('sklad_user');
   if(saved){
-    try{ currentUser = JSON.parse(saved); enterApp(); return; }catch(e){}
+    try{
+      currentUser = JSON.parse(saved);
+      // MUHIM: ilova ochilgan zahoti — hozirgina bootstrap orqali yuklangan
+      // ENG YANGI Login ro'yxati asosida — bu foydalanuvchi hali ham
+      // ro'yxatda bormi tekshiriladi. Agar admin uni Login varag'idan
+      // o'chirgan bo'lsa (ishdan bo'shatilgan xodim), localStorage'da
+      // eski sessiya saqlanib qolgan bo'lsa ham, ilova uni AVTOMATIK
+      // chiqarib yuboradi — brauzerni yopib-ochish yoki cache tozalash
+      // shart emas.
+      if(!syncCurrentUserWithEmployees()){
+        forceLogout("Sizning hisobingiz o'chirilgan yoki o'zgartirilgan. Administrator bilan bog'laning.");
+        return;
+      }
+      enterApp();
+      startSessionWatch();
+      return;
+    }catch(e){}
   }
   document.getElementById('loginScreen').style.display = 'flex';
+}
+
+// Joriy foydalanuvchini ENG YANGI employees ro'yxati bilan solishtiradi.
+// Agar login topilmasa — false qaytaradi (chiqarib yuborish kerak).
+// Topilsa — ism/tuman/rol o'zgargan bo'lishi mumkin (masalan admin
+// huquqi olib tashlangan yoki boshqa tumanga o'tkazilgan), shu holatda
+// currentUser va localStorage YANGILANADI, shunda ochiq sessiya ham
+// eng so'nggi huquqlarga mos ishlaydi.
+function syncCurrentUserWithEmployees(){
+  const found = employees.find(e => normalize(e.LOGIN) === normalize(currentUser.login));
+  if(!found) return false;
+  const freshUser = {
+    ism: found.ISM,
+    login: found.LOGIN,
+    tuman: (found.tuman||'').toString().trim(),
+    role: (found.dostup||'xodim').toString().trim().toLowerCase()
+  };
+  const changed = JSON.stringify(freshUser) !== JSON.stringify(currentUser);
+  currentUser = freshUser;
+  if(changed){
+    localStorage.setItem('sklad_user', JSON.stringify(currentUser));
+    if(document.getElementById('appScreen').style.display !== 'none') applyRoleUI();
+  }
+  return true;
+}
+
+// Sessiyani majburan tugatadi — hisob o'chirilgan/o'zgartirilgan holatlar
+// uchun. Oddiy "Chiqish" tugmasidan farqi: sabab ko'rsatuvchi xabar chiqadi.
+function forceLogout(message){
+  stopSessionWatch();
+  localStorage.removeItem('sklad_user');
+  currentUser = null;
+  document.getElementById('appScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginInput').value = '';
+  document.getElementById('passInput').value = '';
+  if(message){
+    const errEl = document.getElementById('loginError');
+    errEl.textContent = message;
+    errEl.classList.add('show');
+  }
+}
+
+// Ochiq (allaqachon kirilgan) sessiyalar uchun ham xuddi shu tekshiruv
+// davriy ravishda ishlaydi — shunda admin xodimni Login varag'idan
+// o'chirgan zahoti, xodim brauzerini yopmasa ham, bir necha soniya
+// ichida avtomatik chiqarib yuboriladi (sahifani yangilashi shart emas).
+let sessionWatchIntervalId = null;
+function startSessionWatch(){
+  stopSessionWatch();
+  sessionWatchIntervalId = setInterval(async ()=>{
+    if(!currentUser) return;
+    const ok = await loadAll();
+    if(!ok) return; // tarmoq xatosi — sessiyani bekor qilmaymiz, keyingi urinishda tekshiramiz
+    if(!syncCurrentUserWithEmployees()){
+      forceLogout("Sizning hisobingiz o'chirilgan yoki o'zgartirilgan. Administrator bilan bog'laning.");
+      return;
+    }
+    renderActive();
+    updateStats();
+  }, 45000);
+}
+function stopSessionWatch(){
+  if(sessionWatchIntervalId != null){ clearInterval(sessionWatchIntervalId); sessionWatchIntervalId = null; }
 }
 
 document.getElementById('loginBtn').addEventListener('click', doLogin);
@@ -984,6 +1067,7 @@ async function doLogin(){
       // shuning uchun bu yerda qayta yuklash shart emas, darhol kiramiz.
       // (Yangilash tugmasi orqali istalgan payt qo'lda yangilash mumkin.)
       enterApp();
+      startSessionWatch();
     }else{
       errEl.textContent = "Login yoki parol noto'g'ri"; errEl.classList.add('show');
     }
@@ -995,13 +1079,15 @@ async function doLogin(){
 }
 
 document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  stopSessionWatch();
   localStorage.removeItem('sklad_user');
   location.reload();
 });
 
-function enterApp(){
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('appScreen').style.display = 'block';
+// Rol/tuman asosidagi UI elementlarini (admin tugmalari, sarlavhalar)
+// yangilaydi — enterApp() birinchi kirishda, syncCurrentUserWithEmployees()
+// esa keyinchalik rol o'zgarganda shu funksiyani qayta chaqiradi.
+function applyRoleUI(){
   document.getElementById('userName').textContent = currentUser.ism;
   const isAdmin = currentUser.role === 'admin';
   document.getElementById('addBtn').style.display = isAdmin ? 'flex' : 'none';
@@ -1010,12 +1096,22 @@ function enterApp(){
   document.getElementById('meningTitle').textContent = isAdmin
     ? "Barcha qabul qilingan qurilmalar (kimda turgani bilan)"
     : "Siz olgan, hali o'rnatilmagan qurilmalar";
+}
+
+function enterApp(){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+  applyRoleUI();
   renderActive();
   updateStats();
 }
 
 async function refreshData(){
   const ok = await loadAll();
+  if(ok && currentUser && !syncCurrentUserWithEmployees()){
+    forceLogout("Sizning hisobingiz o'chirilgan yoki o'zgartirilgan. Administrator bilan bog'laning.");
+    return;
+  }
   renderActive();
   updateStats();
   if(ok) toast('Yangilandi', 'success');
@@ -1794,20 +1890,143 @@ document.getElementById('installConfirm').addEventListener('click', ()=>{
 });
 
 // ============ JOYLASHUV (XARITA) ============
+// MUHIM (aniqlik muammosi uchun tuzatish): telefonlarning GPS/tarmoq orqali
+// joylashuvni aniqlashi ba'zida noaniq (10-100+ metr xato) bo'lishi mumkin,
+// ayniqsa yopiq joy yoki zaif signal bo'lsa. Avvalgi versiya faqat BITTA
+// marta (getCurrentPosition) o'qib, shu natijaga to'liq ishonib, belgini
+// darhol qo'yib qo'yardi — xodim buni tekshirmasdan tasdiqlasa, noto'g'ri
+// joy saqlanib qolardi. Endi:
+//  1) navigator.geolocation.watchPosition orqali bir necha soniya davomida
+//     joylashuv DOIMIY yangilanadi (odatda vaqt o'tgani sayin aniqroq
+//     bo'lib boradi), shuning uchun bitta xato o'qishga emas.
+//  2) Xaritada GPS aniqlik radiusi (aylana) chizib ko'rsatiladi — xodim
+//     haqiqatan qayerda ekanini bu doira ichida ko'rib, kerak bo'lsa
+//     belgini aniq joyga o'zi surishi mumkin.
+//  3) Aniqlik yomon bo'lsa (> 30 metr), ekranda aniq ogohlantirish
+//     chiqadi: "belgini qo'lda to'g'rilang".
+//  4) Xodim belgini o'zi bir marta surgan yoki xaritaga bosgan zahoti,
+//     tizim endi uni "qo'lda to'g'rilangan" deb hisoblab, avtomatik GPS
+//     yangilanishini to'xtatadi (aks holda qo'lda tuzatilgan joy яна GPS
+//     tomonidan qayta almashtirilib qolishi mumkin edi).
 let leafletMapInstance = null, leafletMarker = null, pickedLatLng = null, myLocationMarker = null;
+let geoWatchId = null, accuracyCircle = null, userAdjustedMarker = false, currentAccuracy = null;
 const mapOverlay = document.getElementById('mapOverlay');
 const locBtn = document.getElementById('locBtn');
 const locateMeBtn = document.getElementById('locateMeBtn');
+const mapConfirmBtn = document.getElementById('mapConfirm');
 const DEFAULT_CENTER = [39.7747, 64.4286];
+const ACCURACY_WARN_METERS = 30;
+// "Joylashuvni tasdiqlash" tugmasi GPS aniq joyni ko'rsatmaguncha yoki
+// xodim belgini o'zi qo'lda to'g'irlamaguncha BOSILMAYDI — shu bilan
+// xodim tasodifan noaniq joyni tasdiqlab qo'ymaydi.
+function updateMapConfirmState(){
+  const accurateEnough = currentAccuracy != null && currentAccuracy <= ACCURACY_WARN_METERS;
+  const ready = userAdjustedMarker || accurateEnough;
+  mapConfirmBtn.disabled = !ready;
+  mapConfirmBtn.textContent = ready ? 'Joylashuvni tasdiqlash' : '⏳ Aniq joy kutilmoqda...';
+}
 
 function resetLocation(){
   pickedLatLng = null;
+  userAdjustedMarker = false;
+  currentAccuracy = null;
   locBtn.textContent = '📍 Joylashuvni belgilash';
   locBtn.classList.remove('picked');
+  clearAccuracyWatch();
+  if(accuracyCircle){ accuracyCircle.remove(); accuracyCircle = null; }
+  document.getElementById('mapAccuracyWarn').style.display = 'none';
+  updateMapConfirmState();
 }
 
-function updateCoordsText(lat, lng){
-  document.getElementById('mapCoordsText').textContent = lat.toFixed(6) + ', ' + lng.toFixed(6);
+function updateCoordsText(lat, lng, accuracy){
+  let txt = lat.toFixed(6) + ', ' + lng.toFixed(6);
+  if(accuracy != null){ txt += '  ·  aniqlik ±' + Math.round(accuracy) + ' m'; currentAccuracy = accuracy; }
+  document.getElementById('mapCoordsText').textContent = txt;
+
+  const warnEl = document.getElementById('mapAccuracyWarn');
+  if(accuracy != null && !userAdjustedMarker){
+    if(accuracy > ACCURACY_WARN_METERS){
+      warnEl.className = 'map-accuracy-warn';
+      warnEl.textContent = '⚠️ GPS aniqligi past (±' + Math.round(accuracy) + ' m) — belgini (📍) qo\'lda aniq joyga suring';
+      warnEl.style.display = 'block';
+    } else {
+      warnEl.className = 'map-accuracy-ok';
+      warnEl.textContent = '✓ Aniqlik yetarli — kerak bo\'lsa baribir belgini tekshiring';
+      warnEl.style.display = 'block';
+    }
+  } else if(userAdjustedMarker){
+    warnEl.style.display = 'none';
+  }
+  updateMapConfirmState();
+}
+
+// GPS o'qishni bir necha soniya davomida kuzatib, marker va aniqlik
+// doirasini yangilab turadi. Xodim belgini o'zi surmagan ekan, avtomatik
+// eng so'nggi (odatda eng aniq) o'qishga ko'chiradi. Batareyani tejash
+// uchun 18 soniyadan keyin o'zi to'xtaydi.
+function startAccuracyWatch(){
+  if(!navigator.geolocation) return;
+  clearAccuracyWatch();
+  document.getElementById('mapCoordsText').textContent = 'GPS orqali aniqlanmoqda...';
+  geoWatchId = navigator.geolocation.watchPosition(
+    (pos)=>{
+      const c = [pos.coords.latitude, pos.coords.longitude];
+      const acc = pos.coords.accuracy;
+      updateAccuracyCircle(c, acc);
+      // Xodimning HAQIQIY turgan joyi (ko'k nuqta) — belgini qo'lda
+      // surgandan keyin ham ko'rsatilib turadi, shunda xodim o'z joyi
+      // bilan belgilangan nuqtani solishtirib ko'ra oladi.
+      showMyLocationDot(c);
+      if(!userAdjustedMarker){
+        leafletMarker.setLatLng(c);
+        const curZoom = leafletMapInstance.getZoom();
+        leafletMapInstance.setView(c, curZoom < 17 ? 17 : curZoom);
+        updateCoordsText(c[0], c[1], acc);
+      }
+    },
+    (err)=>{
+      if(!userAdjustedMarker){
+        document.getElementById('mapCoordsText').textContent = leafletMarker.getLatLng().lat.toFixed(6) + ', ' + leafletMarker.getLatLng().lng.toFixed(6);
+        const warnEl = document.getElementById('mapAccuracyWarn');
+        warnEl.className = 'map-accuracy-warn';
+        warnEl.textContent = "⚠️ GPS orqali joy aniqlanmadi — xaritaga bosib yoki belgini (📍) surib, aniq joyni o'zingiz ko'rsating";
+        warnEl.style.display = 'block';
+      }
+    },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+  );
+  setTimeout(clearAccuracyWatch, 18000);
+}
+
+function clearAccuracyWatch(){
+  if(geoWatchId != null){
+    navigator.geolocation.clearWatch(geoWatchId);
+    geoWatchId = null;
+  }
+}
+
+function updateAccuracyCircle(latlng, accuracy){
+  if(!leafletMapInstance) return;
+  if(accuracyCircle){
+    accuracyCircle.setLatLng(latlng);
+    accuracyCircle.setRadius(accuracy);
+  } else {
+    accuracyCircle = L.circle(latlng, {
+      radius: accuracy, color: '#2f6fed', weight: 1.5,
+      fillColor: '#2f6fed', fillOpacity: 0.12
+    }).addTo(leafletMapInstance);
+  }
+}
+
+// Xodim belgini qo'lda surgan yoki xaritaga bosgan payt chaqiriladi —
+// shu bilan GPS avtomatik yangilanishi to'xtaydi, chunki xodim ongli
+// ravishda aniq joyni ko'rsatgan bo'ladi.
+function markUserAdjusted(){
+  userAdjustedMarker = true;
+  clearAccuracyWatch();
+  if(accuracyCircle){ accuracyCircle.remove(); accuracyCircle = null; }
+  document.getElementById('mapAccuracyWarn').style.display = 'none';
+  updateMapConfirmState();
 }
 
 let leafletLoadPromise = null;
@@ -1832,6 +2051,7 @@ function ensureLeafletLoaded(){
 function openMapPicker(){
   mapOverlay.classList.add('show');
   document.getElementById('mapCoordsText').textContent = 'Xarita yuklanmoqda...';
+  if(!pickedLatLng) updateMapConfirmState();
   ensureLeafletLoaded().then(initLeafletMap).catch(err=>{
     toast(err.message, 'error');
     mapOverlay.classList.remove('show');
@@ -1855,10 +2075,12 @@ function initLeafletMap(){
       leafletMarker = L.marker(startCenter, { draggable: true }).addTo(leafletMapInstance);
       leafletMarker.on('dragend', ()=>{
         const p = leafletMarker.getLatLng();
+        markUserAdjusted();
         updateCoordsText(p.lat, p.lng);
       });
       leafletMapInstance.on('click', (e)=>{
         leafletMarker.setLatLng(e.latlng);
+        markUserAdjusted();
         updateCoordsText(e.latlng.lat, e.latlng.lng);
       });
     } else {
@@ -1868,19 +2090,11 @@ function initLeafletMap(){
     }
     updateCoordsText(startCenter[0], startCenter[1]);
 
-    if(!pickedLatLng && navigator.geolocation){
-      document.getElementById('mapCoordsText').textContent = 'GPS orqali aniqlanmoqda...';
-      navigator.geolocation.getCurrentPosition(
-        (pos)=>{
-          const c = [pos.coords.latitude, pos.coords.longitude];
-          leafletMapInstance.setView(c, 16);
-          leafletMarker.setLatLng(c);
-          updateCoordsText(c[0], c[1]);
-          showMyLocationDot(c);
-        },
-        ()=>{ updateCoordsText(startCenter[0], startCenter[1]); },
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
+    if(!pickedLatLng){
+      // Avval bir martalik getCurrentPosition o'rniga — bir necha soniya
+      // davomida yangilanib, aniqlik doirasini ham ko'rsatadigan
+      // watchPosition ishlatiladi (yuqoridagi izohga qarang).
+      startAccuracyWatch();
     }
   }, 50);
 }
