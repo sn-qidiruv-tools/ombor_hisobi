@@ -358,29 +358,39 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 .badge-icon-btn.pending{color:var(--text-dim);background:var(--surface-2);border-color:var(--border);cursor:default}
 .badge-icon-btn.danger{border-color:rgba(225,29,72,.35);background:rgba(225,29,72,.10);color:#e11d48}
 
-/* ===== Muddati o'tgan qurilma ogohlantirish banneri (xodim ekrani) =====
-   Ma'lumot yuklangan zahoti (istalgan bo'limda bo'lsa ham) ko'rinadi va
-   admin masalani hal qilmaguncha (faollashtirish/qaytarish) yo'qolmaydi.
-   Faqat MA'LUMOT ko'rsatadi — hech qanday tugma yo'q, chunki xodim bu
+/* ===== Muddati o'tgan qurilma — TO'LIQ EKRANNI QULFLASH (xodim ekrani) =====
+   Ma'lumot yuklangan zahoti (login qilinganda, istalgan bo'limda bo'lsa
+   ham) BUTUN ekranni qoplaydi — xodim hech narsa (boshqa bo'lim, tugma,
+   pastki navigatsiya) ko'ra yoki bosa olmaydi, faqat shu xabarni ko'radi.
+   Admin masalani hal qilmaguncha (faollashtirish/qaytarish) yo'qolmaydi —
+   keyingi ma'lumot yangilanishida o'zi yo'qolib, ilova oddiy holatga
+   qaytadi. Faqat MA'LUMOT — hech qanday tugma yo'q, chunki xodim bu
    holatda hech narsa qila olmaydi. */
-.expired-banner{
-  background:linear-gradient(120deg, rgba(225,29,72,.10), rgba(225,29,72,.06));
-  border:1.5px solid rgba(225,29,72,.35);border-radius:16px;
-  padding:13px 14px;margin:0 0 14px;
-  box-shadow:0 6px 18px rgba(225,29,72,.08);
+.expired-lock{
+  position:fixed;inset:0;z-index:9999;
+  background:linear-gradient(160deg,#3a0a16,#1a0308 65%);
+  display:none;align-items:center;justify-content:center;
+  padding:26px 20px;
 }
-.expired-banner-title{
-  display:flex;align-items:center;gap:7px;color:var(--danger);
-  font-size:13px;font-weight:800;margin-bottom:8px;
+.expired-lock.show{display:flex}
+.expired-lock-card{
+  width:100%;max-width:380px;text-align:center;
 }
-.expired-banner-list{display:flex;flex-direction:column;gap:6px}
-.expired-banner-item{
-  display:flex;align-items:center;justify-content:space-between;gap:8px;
-  background:var(--surface);border:1px solid rgba(225,29,72,.2);border-radius:10px;
-  padding:8px 10px;font-size:12px;color:var(--text);
+.expired-lock-icon{
+  width:64px;height:64px;border-radius:20px;margin:0 auto 18px;
+  background:rgba(225,29,72,.18);border:1.5px solid rgba(251,113,133,.4);
+  display:flex;align-items:center;justify-content:center;font-size:30px;
+  box-shadow:0 10px 30px rgba(225,29,72,.25);
 }
-.expired-banner-item .code{font-family:var(--mono);font-weight:700}
-.expired-banner-item .addr{color:var(--text-dim);font-size:11px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.expired-lock-title{color:#fff;font-size:19px;font-weight:800;margin-bottom:6px;letter-spacing:-.01em}
+.expired-lock-sub{color:rgba(255,225,230,.75);font-size:13px;margin-bottom:22px;line-height:1.5}
+.expired-lock-list{display:flex;flex-direction:column;gap:10px}
+.expired-lock-item{
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:14px;
+  padding:13px 15px;text-align:left;
+}
+.expired-lock-item .code{font-family:var(--mono);font-weight:700;color:#fff;font-size:14.5px}
+.expired-lock-item .addr{color:rgba(255,225,230,.7);font-size:12px;margin-top:4px}
 </style>
 </head>
 <body>
@@ -419,8 +429,6 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
           </button>
         </div>
       </div>
-
-      <div class="expired-banner" id="expiredBanner" style="display:none"></div>
 
       <div class="stat-strip">
         <div class="stat-box b1">
@@ -780,6 +788,15 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
   </div>
 </div>
 
+<div class="expired-lock" id="expiredLock">
+  <div class="expired-lock-card">
+    <div class="expired-lock-icon">⚠️</div>
+    <div class="expired-lock-title">Sizda muddati o'tgan qurilma bor</div>
+    <div class="expired-lock-sub">Ilovadan foydalanish uchun administrator qurilmani faollashtirishi yoki omborga qaytarishi kerak. Admin bilan bog'laning.</div>
+    <div class="expired-lock-list" id="expiredLockList"></div>
+  </div>
+</div>
+
 <div class="bg-progress" id="bgProgressBadge" style="display:none">
   <div class="bg-progress-spinner"></div>
   <span id="bgProgressText">Yuborilmoqda...</span>
@@ -916,21 +933,18 @@ function getLatestRequest(seria, turi){
 // qo'lida). Admin masalani hal qilib, qurilma tugaganlar ro'yxatidan
 // chiqqan zahoti, banner keyingi yangilanishda o'zi yo'qoladi.
 function renderExpiredBanner(){
-  const el = document.getElementById('expiredBanner');
+  const el = document.getElementById('expiredLock');
+  const listEl = document.getElementById('expiredLockList');
   if(!el || !currentUser) return;
-  if(currentUser.role === 'admin'){ el.style.display = 'none'; return; }
+  if(currentUser.role === 'admin'){ el.classList.remove('show'); return; }
   const mine = tugaganlar.filter(d => normalize(d.login) === normalize(currentUser.login));
-  if(mine.length === 0){ el.style.display = 'none'; el.innerHTML = ''; return; }
-  el.style.display = 'block';
-  el.innerHTML = `
-    <div class="expired-banner-title">⚠️ Sizda muddati o'tgan qurilma bor — admin bilan bog'laning</div>
-    <div class="expired-banner-list">
-      ${mine.map(d => `
-        <div class="expired-banner-item">
-          <span class="code">${escapeHtml(d['S/N']||'')}</span>
-          <span class="addr">${escapeHtml(d.manzil||'')}</span>
-        </div>`).join('')}
-    </div>`;
+  if(mine.length === 0){ el.classList.remove('show'); listEl.innerHTML = ''; return; }
+  listEl.innerHTML = mine.map(d => `
+    <div class="expired-lock-item">
+      <div class="code">${escapeHtml(d['S/N']||'')}</div>
+      <div class="addr">${escapeHtml(d.manzil||'')}</div>
+    </div>`).join('');
+  el.classList.add('show');
 }
 
 // ============ FON REJIMIDAGI JARAYON KO'RSATKICHI ============
