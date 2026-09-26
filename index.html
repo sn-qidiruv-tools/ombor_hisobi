@@ -357,6 +357,30 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 .badge-icon-btn:active{transform:scale(.92)}
 .badge-icon-btn.pending{color:var(--text-dim);background:var(--surface-2);border-color:var(--border);cursor:default}
 .badge-icon-btn.danger{border-color:rgba(225,29,72,.35);background:rgba(225,29,72,.10);color:#e11d48}
+
+/* ===== Muddati o'tgan qurilma ogohlantirish banneri (xodim ekrani) =====
+   Ma'lumot yuklangan zahoti (istalgan bo'limda bo'lsa ham) ko'rinadi va
+   admin masalani hal qilmaguncha (faollashtirish/qaytarish) yo'qolmaydi.
+   Faqat MA'LUMOT ko'rsatadi — hech qanday tugma yo'q, chunki xodim bu
+   holatda hech narsa qila olmaydi. */
+.expired-banner{
+  background:linear-gradient(120deg, rgba(225,29,72,.10), rgba(225,29,72,.06));
+  border:1.5px solid rgba(225,29,72,.35);border-radius:16px;
+  padding:13px 14px;margin:0 0 14px;
+  box-shadow:0 6px 18px rgba(225,29,72,.08);
+}
+.expired-banner-title{
+  display:flex;align-items:center;gap:7px;color:var(--danger);
+  font-size:13px;font-weight:800;margin-bottom:8px;
+}
+.expired-banner-list{display:flex;flex-direction:column;gap:6px}
+.expired-banner-item{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  background:var(--surface);border:1px solid rgba(225,29,72,.2);border-radius:10px;
+  padding:8px 10px;font-size:12px;color:var(--text);
+}
+.expired-banner-item .code{font-family:var(--mono);font-weight:700}
+.expired-banner-item .addr{color:var(--text-dim);font-size:11px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
 </style>
 </head>
 <body>
@@ -395,6 +419,8 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
           </button>
         </div>
       </div>
+
+      <div class="expired-banner" id="expiredBanner" style="display:none"></div>
 
       <div class="stat-strip">
         <div class="stat-box b1">
@@ -881,6 +907,32 @@ function getLatestRequest(seria, turi){
   return latest;
 }
 
+// ============ MUDDATI O'TGAN QURILMA BANNERI (xodim ekrani) ============
+// Ma'lumot yuklangan ZAHOTI (updateStats() har safar chaqirilganda —
+// login, yangilash, fon rejimidagi sinxronlash va h.k. paytlarida) ishga
+// tushadi. Admin uchun ko'rsatilmaydi (u "Mening" bo'limida hammasini
+// ko'radi). Faqat MA'LUMOT — hech qanday tugma yo'q, chunki xodim bu
+// holatda hech narsa qila olmaydi (faollashtirish/qaytarish faqat admin
+// qo'lida). Admin masalani hal qilib, qurilma tugaganlar ro'yxatidan
+// chiqqan zahoti, banner keyingi yangilanishda o'zi yo'qoladi.
+function renderExpiredBanner(){
+  const el = document.getElementById('expiredBanner');
+  if(!el || !currentUser) return;
+  if(currentUser.role === 'admin'){ el.style.display = 'none'; return; }
+  const mine = tugaganlar.filter(d => normalize(d.login) === normalize(currentUser.login));
+  if(mine.length === 0){ el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="expired-banner-title">⚠️ Sizda muddati o'tgan qurilma bor — admin bilan bog'laning</div>
+    <div class="expired-banner-list">
+      ${mine.map(d => `
+        <div class="expired-banner-item">
+          <span class="code">${escapeHtml(d['S/N']||'')}</span>
+          <span class="addr">${escapeHtml(d.manzil||'')}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
 // ============ FON REJIMIDAGI JARAYON KO'RSATKICHI ============
 let bgTaskCount = 0;
 function bgTaskStart(label){
@@ -1131,6 +1183,8 @@ function updateStats(){
   const pending = sorovlar.filter(r => (r.holat||'').toString().trim() === 'kutilmoqda').length;
   const xEl = document.getElementById('xabarlarCount');
   if(isAdmin && pending > 0){ xEl.style.display='flex'; xEl.textContent = pending; } else { xEl.style.display='none'; }
+  // Ma'lumot yuklangan/yangilangan HAR SAFAR — bannerni ham qayta baholaymiz.
+  renderExpiredBanner();
 }
 
 const panelSklad = document.getElementById('panelSklad');
