@@ -390,7 +390,10 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
   padding:13px 15px;text-align:left;
 }
 .expired-lock-item .code{font-family:var(--mono);font-weight:700;color:#fff;font-size:14.5px}
+.expired-lock-item .marka{color:rgba(255,225,230,.85);font-size:12px;margin-top:2px;font-weight:600}
 .expired-lock-item .addr{color:rgba(255,225,230,.7);font-size:12px;margin-top:4px}
+.expired-lock-logout{margin-top:22px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.22)}
+.expired-lock-logout:active{transform:scale(.98)}
 </style>
 </head>
 <body>
@@ -794,6 +797,7 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
     <div class="expired-lock-title">Sizda muddati o'tgan qurilma bor</div>
     <div class="expired-lock-sub">Ilovadan foydalanish uchun administrator qurilmani faollashtirishi yoki omborga qaytarishi kerak. Admin bilan bog'laning.</div>
     <div class="expired-lock-list" id="expiredLockList"></div>
+    <button type="button" class="btn btn-secondary expired-lock-logout" id="expiredLockLogout">Chiqish</button>
   </div>
 </div>
 
@@ -942,10 +946,16 @@ function renderExpiredBanner(){
   listEl.innerHTML = mine.map(d => `
     <div class="expired-lock-item">
       <div class="code">${escapeHtml(d['S/N']||'')}</div>
+      ${d.marka ? `<div class="marka">${escapeHtml(d.marka)}</div>` : ''}
       <div class="addr">${escapeHtml(d.manzil||'')}</div>
     </div>`).join('');
   el.classList.add('show');
 }
+document.getElementById('expiredLockLogout').addEventListener('click', ()=>{
+  stopSessionWatch();
+  localStorage.removeItem('sklad_user');
+  location.reload();
+});
 
 // ============ FON REJIMIDAGI JARAYON KO'RSATKICHI ============
 let bgTaskCount = 0;
