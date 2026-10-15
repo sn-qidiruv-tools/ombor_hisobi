@@ -1257,10 +1257,16 @@ document.getElementById('logoutBtn').addEventListener('click', ()=>{
 // Rol/tuman asosidagi UI elementlarini (admin tugmalari, sarlavhalar)
 // yangilaydi — enterApp() birinchi kirishda, syncCurrentUserWithEmployees()
 // esa keyinchalik rol o'zgarganda shu funksiyani qayta chaqiradi.
+// "+" (Yangi qurilma) tugmasi FAQAT admin uchun va FAQAT Sklad bo'limida ko'rinadi.
+function updateFab(){
+  const fab = document.getElementById('addBtn');
+  fab.style.display = (currentUser && currentUser.role === 'admin' && activePanel === 'sklad') ? 'flex' : 'none';
+}
+
 function applyRoleUI(){
   document.getElementById('userName').textContent = currentUser.ism;
   const isAdmin = currentUser.role === 'admin';
-  document.getElementById('addBtn').style.display = isAdmin ? 'flex' : 'none';
+  updateFab();
   document.getElementById('navXabarlar').style.display = isAdmin ? 'flex' : 'none';
   document.getElementById('statMeningLbl').textContent = isAdmin ? 'Qabul qilingan' : 'Mening olganlarim';
   document.getElementById('meningTitle').textContent = isAdmin
@@ -1358,6 +1364,7 @@ function showPanel(name){
   panelMening.style.display = name==='mening' ? 'block':'none';
   panelTarix.style.display = name==='tarix' ? 'block':'none';
   panelXabarlar.style.display = name==='xabarlar' ? 'block':'none';
+  updateFab();
   renderActive();
 }
 Object.keys(navBtns).forEach(name=> navBtns[name].addEventListener('click', ()=>showPanel(name)));
