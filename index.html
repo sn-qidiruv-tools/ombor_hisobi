@@ -384,6 +384,12 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
 .loc-btn.picked{border-style:solid;border-color:var(--ok);color:var(--ok);background:rgba(79,209,165,.08)}
 .map-modal{background:var(--panel);border:1px solid var(--border);border-radius:22px 22px 0 0;width:100%;max-width:var(--app-max-width);padding:16px;max-height:90vh;display:flex;flex-direction:column;gap:12px}
 #leafletMap{width:100%;height:340px;border-radius:14px;overflow:hidden;background:var(--surface-2)}
+#allDevicesMap{width:100%;height:min(58vh,440px);border-radius:14px;overflow:hidden;background:var(--surface-2)}
+.all-map-legend{display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:center;font-size:12px;color:var(--text-dim)}
+.all-map-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.all-map-pop{font-size:12.5px;line-height:1.5}
+.all-map-pop b{font-weight:700}
+.all-map-pop a{color:#0a4a9e;font-weight:600}
 .locate-me-btn{
   position:absolute;bottom:12px;right:12px;z-index:1000;width:38px;height:38px;border-radius:10px;
   background:var(--surface);border:1px solid var(--border);color:var(--blue);
@@ -567,6 +573,7 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
           <input type="text" id="tarixSearch" placeholder="S/N bo'yicha qidirish...">
           <button class="search-clear" id="tarixSearchClear">✕</button>
           <button class="filter-btn" data-scan="tarix" title="Shtrixkodni skanerlash" type="button"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M7 9v6M10 9v6M13 9v6M16 9v6"/></svg></button>
+          <button class="filter-btn" id="tarixMapBtn" title="Barcha qurilmalarni xaritada ko'rish" type="button"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg></button>
           <button class="filter-btn" id="tarixFilterBtn" title="Filter">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
             <span class="filter-dot" id="tarixFilterDot"></span>
@@ -872,6 +879,18 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
     <div class="modal-actions">
       <button class="btn btn-secondary" id="mapCancel">Bekor qilish</button>
       <button class="btn" id="mapConfirm">Joylashuvni tasdiqlash</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="allMapOverlay">
+  <div class="map-modal">
+    <h2 style="margin:0">Qurilmalar xaritasi</h2>
+    <p class="map-hint" id="allMapHint"></p>
+    <div id="allDevicesMap"></div>
+    <div class="all-map-legend" id="allMapLegend"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="allMapClose">Yopish</button>
     </div>
   </div>
 </div>
@@ -2436,6 +2455,98 @@ function renderTarix(){
     </div>`;
   }).join('');
 }
+
+// ============ TARIX: BARCHA QURILMALARNI XARITADA KO'RISH ============
+let allMapInstance = null, allMapLayer = null;
+const allMapOverlay = document.getElementById('allMapOverlay');
+const ALL_MAP_COLORS = ['#0a4a9e','#e11d48','#16a34a','#d97706','#7c3aed','#0891b2'];
+
+function parseLatLng(str){
+  const m = String(str||'').match(/(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)/);
+  if(!m) return null;
+  const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+  if(!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return [lat, lng];
+}
+
+// Tarix ro'yxatidagi bilan bir xil filtrlar (qidiruv, tuman, xodim) xaritaga ham qo'llanadi
+function tarixFilteredList(){
+  const q = normalize(tarixSearch.value.trim());
+  const isAdmin = currentUser.role === 'admin';
+  let list = isAdmin ? chiqim.slice() : chiqim.filter(d => normalize(d.login) === normalize(currentUser.login));
+  if(tarixTumanFilter !== 'all') list = list.filter(d => normalizeTuman(d.tuman) === tarixTumanFilter);
+  if(isAdmin && tarixXodimFilter) list = list.filter(d => normalize(d.login) === normalize(tarixXodimFilter));
+  if(q.length >= 2) list = list.filter(d => normalize(d['S/N']).includes(q));
+  return list;
+}
+
+function openAllDevicesMap(){
+  allMapOverlay.classList.add('show');
+  document.getElementById('allMapHint').textContent = 'Xarita yuklanmoqda...';
+  ensureLeafletLoaded().then(initAllDevicesMap).catch(err=>{
+    toast(err.message, 'error');
+    allMapOverlay.classList.remove('show');
+  });
+}
+
+function initAllDevicesMap(){
+  setTimeout(()=>{
+    if(!allMapInstance){
+      allMapInstance = L.map('allDevicesMap').setView(DEFAULT_CENTER, 12);
+      const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '© OpenStreetMap'
+      }).addTo(allMapInstance);
+      const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19, attribution: 'Tiles © Esri'
+      });
+      L.control.layers({ 'Xarita': streetLayer, 'Sputnik': satelliteLayer }, null, { position: 'topright', collapsed: false }).addTo(allMapInstance);
+      L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(allMapInstance);
+      allMapLayer = L.layerGroup().addTo(allMapInstance);
+    } else {
+      allMapInstance.invalidateSize();
+      allMapLayer.clearLayers();
+    }
+
+    const list = tarixFilteredList();
+    const tumanColor = {};
+    const bounds = [];
+    let noCoord = 0;
+
+    list.forEach(d => {
+      const ll = parseLatLng(d.Lokatsiya);
+      if(!ll){ noCoord++; return; }
+      const tKey = normalizeTuman(d.tuman) || '';
+      if(!(tKey in tumanColor)) tumanColor[tKey] = { color: ALL_MAP_COLORS[Object.keys(tumanColor).length % ALL_MAP_COLORS.length], label: tumanLabel(d.tuman) };
+      const color = tumanColor[tKey].color;
+      const popup = `<div class="all-map-pop">
+        <b>${escapeHtml(d['S/N']||'')}</b><br>
+        ${escapeHtml(d.marka||'')}${d.marka && d.manzil ? ' · ' : ''}${escapeHtml(d.manzil||'')}<br>
+        OLT: <b>${escapeHtml(d.OLT||'')}</b> · Port: <b>${escapeHtml(d.Port||'')}</b> · Masofa: <b>${escapeHtml(d.Masofa||'')}</b><br>
+        ${escapeHtml(d.Ism||d.login||'')} · ${escapeHtml(d.sana||'')}<br>
+        <a href="https://www.google.com/maps?q=${encodeURIComponent(d.Lokatsiya)}" target="_blank" rel="noopener">Google Maps'da ochish</a>
+      </div>`;
+      L.circleMarker(ll, { radius: 8, color: '#ffffff', weight: 2, fillColor: color, fillOpacity: 0.95 })
+        .bindPopup(popup)
+        .bindTooltip(String(d['S/N']||''), { direction: 'top', offset: [0,-6] })
+        .addTo(allMapLayer);
+      bounds.push(ll);
+    });
+
+    if(bounds.length === 1) allMapInstance.setView(bounds[0], 16);
+    else if(bounds.length > 1) allMapInstance.fitBounds(bounds, { padding: [30,30], maxZoom: 17 });
+    else allMapInstance.setView(DEFAULT_CENTER, 12);
+
+    document.getElementById('allMapHint').textContent = bounds.length
+      ? (bounds.length + " ta qurilma xaritada" + (noCoord ? " (" + noCoord + " tasida joylashuv yo'q)" : "") + " — nuqtani bossangiz ma'lumoti chiqadi.")
+      : (list.length ? "Bu qurilmalarda joylashuv saqlanmagan." : "Ko'rsatish uchun o'rnatilgan qurilma yo'q.");
+    document.getElementById('allMapLegend').innerHTML = Object.values(tumanColor)
+      .map(t => `<span><i style="background:${t.color}"></i>${escapeHtml(t.label)}</span>`).join('');
+  }, 50);
+}
+
+document.getElementById('tarixMapBtn').addEventListener('click', openAllDevicesMap);
+document.getElementById('allMapClose').addEventListener('click', ()=> allMapOverlay.classList.remove('show'));
+allMapOverlay.addEventListener('click', e=>{ if(e.target===allMapOverlay) allMapOverlay.classList.remove('show'); });
 
 // ============ ADMIN: O'RNATISHNI BEKOR QILISH ============
 let ornatishBekorSeria = null;
