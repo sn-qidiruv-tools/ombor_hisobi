@@ -152,6 +152,15 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
   background:var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8l-9-5-9 5 9 5 9-5z'/%3E%3Cpath d='M3 8v8l9 5 9-5V8'/%3E%3C/svg%3E") center/28px no-repeat;
 }
 
+/* Shtrixkod skaneri */
+.scan-view{position:relative;width:100%;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#000}
+#scanVideo{width:100%;height:100%;object-fit:cover;display:none}
+#scanReader{width:100%;height:100%;display:none}
+#scanReader video{width:100%!important;height:100%!important;object-fit:cover}
+.scan-frame{position:absolute;left:8%;right:8%;top:30%;bottom:30%;border:2px solid #4ade80;border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.38);pointer-events:none;display:none}
+.scan-torch{position:absolute;right:10px;bottom:10px;width:42px;height:42px;border-radius:12px;border:none;background:rgba(255,255,255,.9);color:#12162b;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:5}
+.scan-torch.on{background:#fbbf24}
+
 /* Katta ekranda (kompyuter) yon tomonlarni sokin fon bilan to'ldirish */
 @media (min-width:480px){
   body{background:linear-gradient(160deg,#dbe4f4,#c6d4ee)}
@@ -527,6 +536,7 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
           <span class="search-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
           <input type="text" id="skladSearch" placeholder="S/N bo'yicha qidirish...">
           <button class="search-clear" id="skladSearchClear">✕</button>
+          <button class="filter-btn" data-scan="sklad" title="Shtrixkodni skanerlash" type="button"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M7 9v6M10 9v6M13 9v6M16 9v6"/></svg></button>
           <button class="filter-btn" id="skladFilterBtn" title="Filter">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
             <span class="filter-dot" id="skladFilterDot"></span>
@@ -541,6 +551,7 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
           <span class="search-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
           <input type="text" id="meningSearch" placeholder="S/N bo'yicha qidirish...">
           <button class="search-clear" id="meningSearchClear">✕</button>
+          <button class="filter-btn" data-scan="mening" title="Shtrixkodni skanerlash" type="button"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M7 9v6M10 9v6M13 9v6M16 9v6"/></svg></button>
           <button class="filter-btn" id="meningFilterBtn" title="Filter">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
             <span class="filter-dot" id="meningFilterDot"></span>
@@ -555,6 +566,7 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
           <span class="search-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
           <input type="text" id="tarixSearch" placeholder="S/N bo'yicha qidirish...">
           <button class="search-clear" id="tarixSearchClear">✕</button>
+          <button class="filter-btn" data-scan="tarix" title="Shtrixkodni skanerlash" type="button"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M7 9v6M10 9v6M13 9v6M16 9v6"/></svg></button>
           <button class="filter-btn" id="tarixFilterBtn" title="Filter">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
             <span class="filter-dot" id="tarixFilterDot"></span>
@@ -860,6 +872,22 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
     <div class="modal-actions">
       <button class="btn btn-secondary" id="mapCancel">Bekor qilish</button>
       <button class="btn" id="mapConfirm">Joylashuvni tasdiqlash</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="scanOverlay">
+  <div class="modal">
+    <h2>Shtrixkodni skanerlang</h2>
+    <p class="modal-sub" id="scanHint">Yorliqdagi bitta shtrixkodni ramka ichiga oling</p>
+    <div class="scan-view">
+      <video id="scanVideo" playsinline muted></video>
+      <div id="scanReader"></div>
+      <div class="scan-frame" id="scanFrame"></div>
+      <button type="button" class="scan-torch" id="scanTorch" style="display:none" aria-label="Chiroq"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6l-1 6h-4L9 2z"/><path d="M10 8v6a2 2 0 0 0 4 0V8"/><path d="M12 17v4"/></svg></button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="scanCancel">Bekor qilish</button>
     </div>
   </div>
 </div>
@@ -2478,6 +2506,189 @@ document.getElementById('addConfirm').addEventListener('click', async ()=>{
     loadAll().then(()=>{ renderActive(); updateStats(); });
   }
 });
+
+// ============ SHTRIXKOD SKANERI ============
+// Qurilma yorlig'ida ba'zan 1 ta, ba'zan 2 ta shtrixkod bo'ladi. Skaner
+// kadrdagi kodlardan SKLAD ro'yxatidagi S/N ga mos keladiganini tanlaydi;
+// mos kelmasa — birinchisini qidiruvga yozadi va "qo'lda yozing" xabarini
+// ko'rsatadi. Android Chrome'da telefonning o'z skaneri (BarcodeDetector)
+// ishlatiladi, boshqa brauzerlarda (iPhone) kutubxona faqat kerak bo'lganda
+// yuklanadi.
+const SCAN_TARGETS = {
+  sklad:  { input:'skladSearch',  clear:'skladSearchClear',  list:()=>sklad,                   render:()=>renderSklad() },
+  mening: { input:'meningSearch', clear:'meningSearchClear', list:()=>kirim.concat(tugaganlar), render:()=>renderMening() },
+  tarix:  { input:'tarixSearch',  clear:'tarixSearchClear',  list:()=>chiqim,                  render:()=>renderTarix() }
+};
+let scanTarget = null, scanStream = null, scanTimer = null, scanHintTimer = null, scanActive = false, scanH5 = null, scanTorchOn = false;
+const scanOverlay = document.getElementById('scanOverlay');
+const SCAN_HINT_DEFAULT = "Yorliqdagi bitta shtrixkodni ramka ichiga oling";
+
+function scanCandidates(raw){
+  const t = (raw||'').toString().trim();
+  const out = [t];
+  const noStar = t.replace(/\*\d+$/, '').trim();   // "TDP...075_1*8" -> "TDP...075_1"
+  if(noStar && noStar !== t) out.push(noStar);
+  return out;
+}
+function findScanMatch(codes, list){
+  const sn = d => normalize(d['S/N']);
+  for(const code of codes){
+    for(const cand of scanCandidates(code)){
+      const c = normalize(cand);
+      const hit = list.find(d => sn(d) === c);
+      if(hit) return hit;
+    }
+  }
+  for(const code of codes){
+    for(const cand of scanCandidates(code)){
+      const c = normalize(cand);
+      if(c.length < 6) continue;
+      const hit = list.find(d => { const x = sn(d); return x.length >= 6 && (x.includes(c) || c.includes(x)); });
+      if(hit) return hit;
+    }
+  }
+  return null;
+}
+function applyScan(codes){
+  const t = SCAN_TARGETS[scanTarget];
+  if(!t) return;
+  const input = document.getElementById(t.input);
+  const found = findScanMatch(codes, t.list());
+  if(found){
+    input.value = found['S/N'];
+    toast('Topildi: ' + found['S/N'], 'success');
+  } else {
+    const first = scanCandidates(codes[0]).pop();
+    input.value = first;
+    toast("Bu shtrixkod bo'yicha qurilma topilmadi (" + first + "). S/N ni qo'lda yozib qidiring.", 'error');
+  }
+  document.getElementById(t.clear).style.display = 'flex';
+  t.render();
+}
+
+async function stopScanner(){
+  scanActive = false;
+  clearTimeout(scanTimer); clearTimeout(scanHintTimer);
+  if(scanStream){ scanStream.getTracks().forEach(tr=>tr.stop()); scanStream = null; }
+  const v = document.getElementById('scanVideo');
+  v.srcObject = null;
+  if(scanH5){
+    const h = scanH5; scanH5 = null;
+    try{ await h.stop(); }catch(e){}
+    try{ h.clear(); }catch(e){}
+  }
+  scanTorchOn = false;
+  const tb = document.getElementById('scanTorch');
+  tb.style.display = 'none'; tb.classList.remove('on');
+}
+function closeScanner(){
+  stopScanner();
+  scanOverlay.classList.remove('show');
+}
+function finishScan(codes){
+  if(!scanActive) return;
+  if(navigator.vibrate){ try{ navigator.vibrate(60); }catch(e){} }
+  closeScanner();
+  applyScan(codes);
+}
+
+function setupTorch(){
+  try{
+    const track = scanStream && scanStream.getVideoTracks()[0];
+    const caps = track && track.getCapabilities ? track.getCapabilities() : null;
+    if(caps && caps.torch){ document.getElementById('scanTorch').style.display = 'flex'; }
+  }catch(e){}
+}
+document.getElementById('scanTorch').addEventListener('click', async ()=>{
+  try{
+    const track = scanStream && scanStream.getVideoTracks()[0];
+    if(!track) return;
+    scanTorchOn = !scanTorchOn;
+    await track.applyConstraints({ advanced: [{ torch: scanTorchOn }] });
+    document.getElementById('scanTorch').classList.toggle('on', scanTorchOn);
+  }catch(e){ scanTorchOn = false; }
+});
+
+async function startNativeScan(){
+  let formats = ['code_128','code_39','code_93','codabar','ean_13','ean_8','itf','upc_a','upc_e','qr_code','data_matrix'];
+  try{ const sup = await BarcodeDetector.getSupportedFormats(); formats = formats.filter(f => sup.indexOf(f) > -1); }catch(e){}
+  if(!formats.length) return false;
+  const detector = new BarcodeDetector({ formats });
+  scanStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1280 }, height:{ ideal:720 } }, audio:false });
+  const v = document.getElementById('scanVideo');
+  document.getElementById('scanReader').style.display = 'none';
+  document.getElementById('scanFrame').style.display = 'block';
+  v.style.display = 'block';
+  v.srcObject = scanStream;
+  await v.play();
+  scanActive = true;
+  setupTorch();
+  const tick = async ()=>{
+    if(!scanActive) return;
+    try{
+      if(v.readyState >= 2){
+        const res = await detector.detect(v);
+        const codes = res.map(r => r.rawValue).filter(Boolean);
+        if(codes.length){ finishScan(codes); return; }
+      }
+    }catch(e){}
+    scanTimer = setTimeout(tick, 120);
+  };
+  tick();
+  return true;
+}
+
+let h5LoadPromise = null;
+function ensureH5Loaded(){
+  if(window.Html5Qrcode) return Promise.resolve();
+  if(h5LoadPromise) return h5LoadPromise;
+  h5LoadPromise = new Promise((resolve, reject)=>{
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js';
+    sc.onload = () => resolve();
+    sc.onerror = () => { h5LoadPromise = null; reject(new Error('lib')); };
+    document.head.appendChild(sc);
+  });
+  return h5LoadPromise;
+}
+async function startFallbackScan(){
+  await ensureH5Loaded();
+  document.getElementById('scanVideo').style.display = 'none';
+  document.getElementById('scanFrame').style.display = 'none';
+  document.getElementById('scanReader').style.display = 'block';
+  const F = Html5QrcodeSupportedFormats;
+  scanH5 = new Html5Qrcode('scanReader', { formatsToSupport:[F.CODE_128, F.CODE_39, F.CODE_93, F.EAN_13, F.EAN_8, F.ITF, F.QR_CODE], verbose:false });
+  scanActive = true;
+  await scanH5.start({ facingMode:'environment' }, { fps:10, qrbox:{ width:280, height:150 } }, (text)=>{ finishScan([text]); }, ()=>{});
+}
+
+async function openScanner(target){
+  scanTarget = target;
+  document.getElementById('scanHint').textContent = SCAN_HINT_DEFAULT;
+  if(!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    toast("Kamera faqat HTTPS (xavfsiz) sahifada ishlaydi. S/N ni qo'lda yozib qidiring.", 'error');
+    return;
+  }
+  scanOverlay.classList.add('show');
+  try{
+    let started = false;
+    if('BarcodeDetector' in window){ started = await startNativeScan(); }
+    if(!started){ await startFallbackScan(); }
+    scanHintTimer = setTimeout(()=>{
+      document.getElementById('scanHint').textContent = "O'qilmayapti? Yorliqni yaqinroq va tekis ushlang, yoki S/N ni qo'lda yozing.";
+    }, 15000);
+  }catch(err){
+    closeScanner();
+    if(err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')){
+      toast("Kameraga ruxsat berilmadi. Brauzer sozlamalaridan ruxsat bering yoki S/N ni qo'lda yozing.", 'error');
+    } else {
+      toast("Kamerani yoki skanerni ochib bo'lmadi. S/N ni qo'lda yozib qidiring.", 'error');
+    }
+  }
+}
+document.querySelectorAll('[data-scan]').forEach(b => b.addEventListener('click', ()=> openScanner(b.dataset.scan)));
+document.getElementById('scanCancel').addEventListener('click', closeScanner);
+scanOverlay.addEventListener('click', e=>{ if(e.target === scanOverlay) closeScanner(); });
 
 // ============ STATISTIKA KARTALARI — BOSILGANDA BO'LIMGA O'TADI ============
 [['.stat-box.b1','sklad'],['.stat-box.b2','mening'],['.stat-box.b3','tarix']].forEach(([sel,name])=>{
