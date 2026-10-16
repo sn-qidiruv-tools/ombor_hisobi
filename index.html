@@ -199,7 +199,7 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
    ATAYLAB alohida: u shaffof-oq bo'lgani uchun och fon ustida ko'rinmay
    qolgan edi. Bu esa aniq chegara va rang bilan ko'rinarli. */
 .filter-btn{
-  background:var(--surface-2);border:1.5px solid var(--border-hi);border-radius:11px;width:38px;height:38px;flex-shrink:0;
+  background:var(--surface-2);border:1.5px solid var(--border-hi);border-radius:11px;width:36px;height:36px;flex-shrink:0;
   display:flex;align-items:center;justify-content:center;color:var(--blue);cursor:pointer;transition:.15s;position:relative;
 }
 .filter-btn:hover{background:var(--pill-blue-bg);border-color:var(--blue)}
@@ -228,12 +228,12 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
 
 .section-title{font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin:0 0 10px}
 
-.search-box{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:11px 14px;margin-bottom:14px}
-.search-box input{flex:1;background:transparent;border:none;color:var(--text);font-size:14px;font-family:inherit}
+.search-box{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:7px 7px 7px 12px;margin-bottom:14px;max-width:100%;overflow:hidden}
+.search-box input{flex:1 1 0;min-width:0;width:0;background:transparent;border:none;color:var(--text);font-size:14px;font-family:inherit}
 .search-box input:focus{outline:none}
 .search-box input::placeholder{color:var(--text-dim)}
 .search-icon{color:var(--text-dim);display:flex}
-.search-clear{background:none;border:none;color:var(--text-dim);cursor:pointer;display:none;font-size:14px}
+.search-clear{background:none;border:none;color:var(--text-dim);cursor:pointer;display:none;font-size:14px;flex-shrink:0;padding:4px}
 
 /* ===== TICKET CARD — Sklad/Mening/Tarix uchun BITTA, bir xil uslub
    (ikonka + kod + badge'lar yuqorida, tugmalar bitta qatorda pastda) ===== */
@@ -2524,10 +2524,14 @@ const scanOverlay = document.getElementById('scanOverlay');
 const SCAN_HINT_DEFAULT = "Yorliqdagi bitta shtrixkodni ramka ichiga oling";
 
 function scanCandidates(raw){
-  const t = (raw||'').toString().trim();
-  const out = [t];
-  const noStar = t.replace(/\*\d+$/, '').trim();   // "TDP...075_1*8" -> "TDP...075_1"
-  if(noStar && noStar !== t) out.push(noStar);
+  // "TDP010124F4568_1*8" -> "TDP010124F4568_1*8", "TDP010124F4568_1", "TDP010124F4568"
+  // (oxiridan ketma-ket "*raqam" va "_raqam" kesiladi; o'rtadagi belgilarga tegilmaydi)
+  const out = [];
+  const add = v => { v = (v||'').trim(); if(v && out.indexOf(v) === -1) out.push(v); };
+  let t = (raw||'').toString().trim();
+  add(t);
+  t = t.replace(/\*\d+$/, '').trim(); add(t);
+  t = t.replace(/_\d+$/, '').trim();   add(t);
   return out;
 }
 function findScanMatch(codes, list){
