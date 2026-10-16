@@ -88,9 +88,9 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 .loading-text{color:var(--text-dim);font-size:13.5px}
 
 /* ===== LOGIN ===== */
-.login-screen{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;width:100%;max-width:var(--app-max-width)}
+.login-screen{position:relative;z-index:1;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;width:100%;max-width:var(--app-max-width)}
 .login-card{
-  width:100%;background:var(--surface);backdrop-filter:blur(22px);
+  width:100%;background:var(--surface);
   border:1px solid var(--border);border-radius:22px;padding:32px 26px;
   box-shadow:0 12px 32px rgba(20,30,60,.10);
 }
@@ -106,9 +106,12 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 .field label{display:block;font-size:12.5px;color:var(--text-dim);margin-bottom:6px;font-weight:600}
 .field input, .field select{
   width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px 13px;
-  color:var(--text);font-size:14.5px;font-family:inherit;transition:.15s;
+  color:var(--text);-webkit-text-fill-color:var(--text);opacity:1;font-size:16px;font-family:inherit;line-height:1.3;
+  -webkit-appearance:none;appearance:none;background-clip:padding-box;
+  transition:border-color .15s, box-shadow .15s;
 }
-.field input:focus, .field select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,141,253,.15)}
+.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center;padding-right:34px}
+.field input:focus, .field select:focus{outline:none;border-color:var(--blue);background-color:var(--surface-2);box-shadow:0 0 0 3px var(--active-bg)}
 .btn{
   width:100%;background:linear-gradient(120deg, var(--btn-a), var(--btn-b));color:#ffffff;border:none;border-radius:12px;
   padding:13px;font-size:14.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;
@@ -118,7 +121,7 @@ h1,h2,.font-display{font-family:'Space Grotesk',sans-serif}
 select option,select optgroup{background:var(--surface-solid);color:var(--text)}
 input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,select:-webkit-autofill{
   -webkit-text-fill-color:var(--text);caret-color:var(--text);
-  -webkit-box-shadow:0 0 0 1000px var(--surface-2) inset;box-shadow:0 0 0 1000px var(--surface-2) inset;
+  -webkit-box-shadow:0 0 0 1000px var(--surface-2) inset, 0 0 0 0 transparent;box-shadow:0 0 0 1000px var(--surface-2) inset, 0 0 0 0 transparent;
   transition:background-color 99999s ease-out 0s;
 }
 /* Rejim almashayotganda hamma narsa BIR VAQTDA o'zgaradi (yarim o'tgan ranglar aralashib qolmasin) */
@@ -400,6 +403,12 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
 .loc-btn.picked{border-style:solid;border-color:var(--ok);color:var(--ok);background:rgba(79,209,165,.08)}
 .map-modal{background:var(--panel);border:1px solid var(--border);border-radius:22px 22px 0 0;width:100%;max-width:var(--app-max-width);padding:16px;max-height:90vh;display:flex;flex-direction:column;gap:12px}
 #leafletMap{width:100%;height:340px;border-radius:14px;overflow:hidden;background:var(--surface-2)}
+.marka-hint{font-weight:500;opacity:.8}
+.marka-list{max-height:190px;overflow:auto;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:4px 12px}
+.marka-item{display:flex;align-items:center;gap:10px;padding:10px 0;font-size:14px;color:var(--text);cursor:pointer;user-select:none}
+.marka-item + .marka-item{border-top:1px solid var(--border)}
+.marka-item input{width:18px;height:18px;accent-color:var(--blue);flex-shrink:0;margin:0}
+.marka-empty{padding:12px 0;font-size:13px;color:var(--text-dim);text-align:center}
 .profile-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 4px 14px rgba(20,30,60,.05)}
 .profile-card .profile-info{margin-bottom:0}
 .profile-card .theme-seg{margin-bottom:0}
@@ -605,7 +614,7 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
           <span class="search-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
           <input type="text" id="tarixSearch" placeholder="S/N bo'yicha qidirish...">
           <button class="search-clear" id="tarixSearchClear">✕</button>
-          <button class="filter-btn" data-scan="tarix" title="Shtrixkodni skanerlash" type="button"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M7 9v6M10 9v6M13 9v6M16 9v6"/></svg></button>
+
           <button class="filter-btn" id="tarixMapBtn" title="Barcha qurilmalarni xaritada ko'rish" type="button"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg></button>
           <button class="filter-btn" id="tarixFilterBtn" title="Filter">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
@@ -770,7 +779,7 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
 <div class="overlay" id="tarixFilterOverlay">
   <div class="modal">
     <h2>Filter</h2>
-    <p class="modal-sub">Tuman va xodim bo'yicha filterlash</p>
+    <p class="modal-sub">Tuman, xodim va marka bo'yicha filterlash</p>
     <div class="field">
       <label>Tuman</label>
       <select id="tarixFilterTuman">
@@ -784,6 +793,10 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
       <select id="tarixFilterXodim">
         <option value="">Barchasi</option>
       </select>
+    </div>
+    <div class="field" id="tarixFilterMarkaField">
+      <label>Marka <span class="marka-hint">(bir yoki bir nechtasini tanlang)</span></label>
+      <div class="marka-list" id="tarixFilterMarkaList"></div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" id="tarixFilterReset">Tozalash</button>
@@ -2446,6 +2459,7 @@ tarixSearchClear.addEventListener('click', ()=>{ tarixSearch.value=''; tarixSear
 // --- Tarix filter (Tuman hammaga, Xodim FAQAT admin uchun) ---
 let tarixTumanFilter = 'all';
 let tarixXodimFilter = '';
+let tarixMarkaFilter = [];   // tanlangan markalar (kichik harfda); bo'sh = barchasi
 const tarixFilterOverlay = document.getElementById('tarixFilterOverlay');
 document.getElementById('tarixFilterBtn').addEventListener('click', ()=>{
   const isAdmin = currentUser.role === 'admin';
@@ -2460,6 +2474,15 @@ document.getElementById('tarixFilterBtn').addEventListener('click', ()=>{
     }).join('');
     sel.innerHTML = '<option value="">Barchasi</option>' + optsHtml;
   }
+  // Marka — bir yoki bir nechta tanlash (hamma uchun; ro'yxat foydalanuvchi ko'ra oladigan qurilmalardan olinadi)
+  const scoped = isAdmin ? chiqim : chiqim.filter(d => normalize(d.login) === normalize(currentUser.login));
+  const markaMap = new Map();
+  scoped.forEach(d => { const raw=(d.marka||'').toString().trim(); if(raw && !markaMap.has(normalize(raw))) markaMap.set(normalize(raw), raw); });
+  const markaListEl = document.getElementById('tarixFilterMarkaList');
+  const markalar = Array.from(markaMap.entries()).sort((a,b)=>a[1].localeCompare(b[1]));
+  markaListEl.innerHTML = markalar.length
+    ? markalar.map(([key,label]) => `<label class="marka-item"><input type="checkbox" value="${escapeHtml(key)}"${tarixMarkaFilter.includes(key)?' checked':''}><span>${escapeHtml(label)}</span></label>`).join('')
+    : '<div class="marka-empty">Markalar topilmadi</div>';
   document.getElementById('tarixFilterTuman').value = tarixTumanFilter;
   tarixFilterOverlay.classList.add('show');
 });
@@ -2467,12 +2490,14 @@ tarixFilterOverlay.addEventListener('click', e=>{ if(e.target===tarixFilterOverl
 document.getElementById('tarixFilterApply').addEventListener('click', ()=>{
   tarixTumanFilter = document.getElementById('tarixFilterTuman').value;
   tarixXodimFilter = currentUser.role === 'admin' ? document.getElementById('tarixFilterXodim').value : '';
+  tarixMarkaFilter = Array.from(document.querySelectorAll('#tarixFilterMarkaList input:checked')).map(i => i.value);
   tarixFilterOverlay.classList.remove('show');
   renderTarix();
 });
 document.getElementById('tarixFilterReset').addEventListener('click', ()=>{
   tarixTumanFilter = 'all';
   tarixXodimFilter = '';
+  tarixMarkaFilter = [];
   document.getElementById('tarixFilterTuman').value = 'all';
   document.getElementById('tarixFilterXodim').value = '';
   tarixFilterOverlay.classList.remove('show');
@@ -2485,10 +2510,11 @@ function renderTarix(){
   let list = (isAdmin ? chiqim.slice() : chiqim.filter(d => normalize(d.login) === normalize(currentUser.login))).reverse();
   if(tarixTumanFilter !== 'all') list = list.filter(d => normalizeTuman(d.tuman) === tarixTumanFilter);
   if(isAdmin && tarixXodimFilter) list = list.filter(d => normalize(d.login) === normalize(tarixXodimFilter));
+  if(tarixMarkaFilter.length) list = list.filter(d => tarixMarkaFilter.includes(normalize(d.marka)));
   if(q.length >= 2) list = list.filter(d => normalize(d['S/N']).includes(q));
-  document.getElementById('tarixFilterDot').style.display = (tarixTumanFilter!=='all' || tarixXodimFilter) ? 'block' : 'none';
+  document.getElementById('tarixFilterDot').style.display = (tarixTumanFilter!=='all' || tarixXodimFilter || tarixMarkaFilter.length) ? 'block' : 'none';
   const el = document.getElementById('tarixResults');
-  const filterActive = q || tarixTumanFilter!=='all' || tarixXodimFilter;
+  const filterActive = q || tarixTumanFilter!=='all' || tarixXodimFilter || tarixMarkaFilter.length;
   if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${filterActive ? "Topilmadi" : (isAdmin ? "Hali hech qanday qurilma o'rnatilmagan" : "Siz hali hech narsa o'rnatmagansiz")}</div>`; return; }
   el.innerHTML = list.slice(0,3000).map(d => {
     const mapLinkHtml = d.Lokatsiya
@@ -2544,6 +2570,7 @@ function tarixFilteredList(){
   let list = isAdmin ? chiqim.slice() : chiqim.filter(d => normalize(d.login) === normalize(currentUser.login));
   if(tarixTumanFilter !== 'all') list = list.filter(d => normalizeTuman(d.tuman) === tarixTumanFilter);
   if(isAdmin && tarixXodimFilter) list = list.filter(d => normalize(d.login) === normalize(tarixXodimFilter));
+  if(tarixMarkaFilter.length) list = list.filter(d => tarixMarkaFilter.includes(normalize(d.marka)));
   if(q.length >= 2) list = list.filter(d => normalize(d['S/N']).includes(q));
   return list;
 }
@@ -2696,7 +2723,6 @@ document.getElementById('addConfirm').addEventListener('click', async ()=>{
 const SCAN_TARGETS = {
   sklad:  { input:'skladSearch',  clear:'skladSearchClear',  list:()=>sklad,                   render:()=>renderSklad() },
   mening: { input:'meningSearch', clear:'meningSearchClear', list:()=>kirim.concat(tugaganlar), render:()=>renderMening() },
-  tarix:  { input:'tarixSearch',  clear:'tarixSearchClear',  list:()=>chiqim,                  render:()=>renderTarix() }
 };
 let scanTarget = null, scanStream = null, scanTimer = null, scanHintTimer = null, scanActive = false, scanH5 = null, scanTorchOn = false;
 const scanOverlay = document.getElementById('scanOverlay');
