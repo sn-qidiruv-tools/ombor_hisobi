@@ -403,7 +403,24 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
 .loc-btn.picked{border-style:solid;border-color:var(--ok);color:var(--ok);background:rgba(79,209,165,.08)}
 .map-modal{background:var(--panel);border:1px solid var(--border);border-radius:22px 22px 0 0;width:100%;max-width:var(--app-max-width);padding:16px;max-height:90vh;display:flex;flex-direction:column;gap:12px}
 #leafletMap{width:100%;height:340px;border-radius:14px;overflow:hidden;background:var(--surface-2)}
-.marka-hint{font-weight:500;opacity:.8}
+.msel{position:relative}
+.msel-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px 13px;color:var(--text);font-family:inherit;font-size:16px;line-height:1.3;cursor:pointer;-webkit-appearance:none;appearance:none;transition:border-color .15s, box-shadow .15s}
+.msel-btn::after{content:'';width:12px;height:8px;flex-shrink:0;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E") no-repeat center;transition:transform .15s}
+.msel.open .msel-btn{border-color:var(--blue);box-shadow:0 0 0 3px var(--active-bg)}
+.msel.open .msel-btn::after{transform:rotate(180deg)}
+.msel-panel{display:none;margin-top:6px}
+.msel.open .msel-panel{display:block}
+.del-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;background:var(--pill-red-bg);color:var(--pill-red-fg);border:1px solid rgba(251,113,133,.35);transition:opacity .15s, transform .12s}
+.del-icon:active{transform:scale(.94)}
+.del-icon:disabled{opacity:.4;cursor:default;transform:none}
+.confirm-modal{text-align:center}
+.confirm-icon{width:52px;height:52px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;background:var(--pill-red-bg);color:var(--pill-red-fg)}
+.confirm-modal .modal-sub{margin-bottom:18px}
+#confirmOverlay{z-index:90}
+.to-top{position:fixed;z-index:29;bottom:calc(84px + env(safe-area-inset-bottom));left:max(16px, calc((100vw - var(--app-max-width)) / 2 + 16px));width:44px;height:44px;border-radius:50%;border:1px solid var(--border-hi);background:var(--surface);color:var(--active-fg);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 8px 20px rgba(20,30,60,.22);opacity:0;visibility:hidden;transform:translateY(10px);transition:opacity .2s, transform .2s, visibility .2s}
+.to-top.show{opacity:1;visibility:visible;transform:none}
+.to-top:active{transform:scale(.92)}
+.icon-btn.spinning svg{animation:spin .8s linear infinite}
 .marka-list{max-height:190px;overflow:auto;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:4px 12px}
 .marka-item{display:flex;align-items:center;gap:10px;padding:10px 0;font-size:14px;color:var(--text);cursor:pointer;user-select:none}
 .marka-item + .marka-item{border-top:1px solid var(--border)}
@@ -661,7 +678,7 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
             <input type="checkbox" id="xabarlarSelectAll">
             <span>Hammasini belgilash</span>
           </label>
-          <button class="big-btn ghost" id="xabarlarDeleteBtn" disabled style="width:auto;padding:9px 16px"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg> O'chirish (<span id="xabarlarSelectedCount">0</span>)</button>
+          <button class="del-icon" id="xabarlarDeleteBtn" disabled type="button" title="Tanlanganlarni o'chirish" aria-label="O'chirish"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button><span id="xabarlarSelectedCount" style="display:none">0</span>
         </div>
         <div id="xabarlarResults"></div>
       </div>
@@ -795,8 +812,11 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
       </select>
     </div>
     <div class="field" id="tarixFilterMarkaField">
-      <label>Marka <span class="marka-hint">(bir yoki bir nechtasini tanlang)</span></label>
-      <div class="marka-list" id="tarixFilterMarkaList"></div>
+      <label>Marka</label>
+      <div class="msel" id="tarixMarkaSel">
+        <button type="button" class="msel-btn" id="tarixMarkaBtn"><span id="tarixMarkaText">Barchasi</span></button>
+        <div class="msel-panel"><div class="marka-list" id="tarixFilterMarkaList"></div></div>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" id="tarixFilterReset">Tozalash</button>
@@ -958,6 +978,20 @@ html[data-theme="dark"] .brand-logo.on-surface{background:#fff;padding:10px 14px
     </div>
   </div>
 </div>
+
+<div class="overlay" id="confirmOverlay">
+  <div class="modal confirm-modal">
+    <div class="confirm-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></div>
+    <h2 id="confirmTitle">Tasdiqlang</h2>
+    <p class="modal-sub" id="confirmText"></p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="confirmNo" type="button">Yo'q</button>
+      <button class="btn btn-logout" id="confirmYes" type="button" style="margin-top:0">Ha</button>
+    </div>
+  </div>
+</div>
+
+<button class="to-top" id="toTopBtn" type="button" title="Tepaga" aria-label="Tepaga qaytish"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
 
 <div class="overlay" id="allMapOverlay">
   <div class="map-modal">
@@ -1406,14 +1440,22 @@ function enterApp(){
 }
 
 async function refreshData(){
-  const ok = await loadAll();
-  if(ok && currentUser && !syncCurrentUserWithEmployees()){
-    forceLogout("Sizning hisobingiz o'chirilgan yoki o'zgartirilgan. Administrator bilan bog'laning.");
-    return;
+  const btn = document.getElementById('refreshBtnTop');
+  if(btn.classList.contains('spinning')) return;
+  btn.classList.add('spinning');
+  const t0 = Date.now();
+  try{
+    const ok = await loadAll();
+    if(ok && currentUser && !syncCurrentUserWithEmployees()){
+      forceLogout("Sizning hisobingiz o'chirilgan yoki o'zgartirilgan. Administrator bilan bog'laning.");
+      return;
+    }
+    renderActive();
+    updateStats();
+    if(ok) toast('Yangilandi', 'success');
+  } finally {
+    setTimeout(()=> btn.classList.remove('spinning'), Math.max(0, 700 - (Date.now() - t0)));
   }
-  renderActive();
-  updateStats();
-  if(ok) toast('Yangilandi', 'success');
 }
 document.getElementById('refreshBtnTop').addEventListener('click', refreshData);
 
@@ -1804,9 +1846,10 @@ document.getElementById('faollashtirishConfirm').addEventListener('click', ()=>{
 
 // ============ ADMIN: QO'LDA "MUDDATI TUGAGAN" DEB BELGILASH ============
 // ==== OPTIMISTIK: Kirim -> Tugagan darhol ko'chadi ====
-function muddatTugatish(seriaEnc){
+async function muddatTugatish(seriaEnc){
   const seria = decodeURIComponent(seriaEnc);
-  if(!confirm("Ushbu qurilmani muddati tugagan deb belgilaysizmi?\nXodim bu qurilma bilan endi ishlay olmaydi.")) return;
+  const okEnd = await askConfirm({ title:"Muddatni tugatish", text:"Ushbu qurilma muddati tugagan deb belgilansinmi? Xodim bu qurilma bilan endi ishlay olmaydi.", okText:"Ha, tugatish" });
+  if(!okEnd) return;
 
   const idx = kirim.findIndex(d => d['S/N'] === seria);
   const removed = idx > -1 ? kirim.splice(idx, 1)[0] : null;
@@ -2028,6 +2071,8 @@ document.getElementById('xabarlarSelectAll').addEventListener('change', (e)=>{
 document.getElementById('xabarlarDeleteBtn').addEventListener('click', async ()=>{
   if(selectedSorovIds.size === 0) return;
   const ids = Array.from(selectedSorovIds);
+  const okDel = await askConfirm({ title:"Xabarlarni o'chirish", text: ids.length + " ta tanlangan xabar o'chiriladi. Davom etasizmi?", okText:"Ha, o'chirish" });
+  if(!okDel) return;
 
   const removedItems = [];
   sorovlar = sorovlar.filter(r=>{
@@ -2483,10 +2528,21 @@ document.getElementById('tarixFilterBtn').addEventListener('click', ()=>{
   markaListEl.innerHTML = markalar.length
     ? markalar.map(([key,label]) => `<label class="marka-item"><input type="checkbox" value="${escapeHtml(key)}"${tarixMarkaFilter.includes(key)?' checked':''}><span>${escapeHtml(label)}</span></label>`).join('')
     : '<div class="marka-empty">Markalar topilmadi</div>';
+  document.getElementById('tarixMarkaSel').classList.remove('open');
+  updateMarkaText();
   document.getElementById('tarixFilterTuman').value = tarixTumanFilter;
   tarixFilterOverlay.classList.add('show');
 });
 tarixFilterOverlay.addEventListener('click', e=>{ if(e.target===tarixFilterOverlay) tarixFilterOverlay.classList.remove('show'); });
+function updateMarkaText(){
+  const checked = document.querySelectorAll('#tarixFilterMarkaList input:checked');
+  const el = document.getElementById('tarixMarkaText');
+  el.textContent = checked.length === 0 ? 'Barchasi'
+    : checked.length === 1 ? checked[0].parentElement.querySelector('span').textContent
+    : checked.length + ' ta tanlandi';
+}
+document.getElementById('tarixMarkaBtn').addEventListener('click', ()=> document.getElementById('tarixMarkaSel').classList.toggle('open'));
+document.getElementById('tarixFilterMarkaList').addEventListener('change', updateMarkaText);
 document.getElementById('tarixFilterApply').addEventListener('click', ()=>{
   tarixTumanFilter = document.getElementById('tarixFilterTuman').value;
   tarixXodimFilter = currentUser.role === 'admin' ? document.getElementById('tarixFilterXodim').value : '';
@@ -2903,6 +2959,42 @@ scanOverlay.addEventListener('click', e=>{ if(e.target === scanOverlay) closeSca
 [['.stat-box.b1','sklad'],['.stat-box.b2','mening'],['.stat-box.b3','tarix']].forEach(([sel,name])=>{
   document.querySelector(sel).addEventListener('click', ()=> showPanel(name));
 });
+
+// ============ SAYTNING O'Z TASDIQLASH OYNASI (brauzer confirm() o'rniga) ============
+const confirmOverlay = document.getElementById('confirmOverlay');
+let confirmResolve = null;
+function askConfirm(opts){
+  opts = opts || {};
+  document.getElementById('confirmTitle').textContent = opts.title || 'Tasdiqlang';
+  document.getElementById('confirmText').textContent = opts.text || '';
+  document.getElementById('confirmYes').textContent = opts.okText || 'Ha';
+  document.getElementById('confirmNo').textContent = opts.cancelText || "Yo'q";
+  confirmOverlay.classList.add('show');
+  return new Promise(res => { confirmResolve = res; });
+}
+function closeConfirm(v){
+  confirmOverlay.classList.remove('show');
+  const r = confirmResolve; confirmResolve = null;
+  if(r) r(v);
+}
+document.getElementById('confirmYes').addEventListener('click', ()=> closeConfirm(true));
+document.getElementById('confirmNo').addEventListener('click', ()=> closeConfirm(false));
+confirmOverlay.addEventListener('click', e=>{ if(e.target===confirmOverlay) closeConfirm(false); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && confirmResolve) closeConfirm(false); });
+
+// ============ TEPAGA QAYTISH TUGMASI (ro'yxat pastga tushganda chiqadi) ============
+(function(){
+  const btn = document.getElementById('toTopBtn');
+  let ticking = false;
+  function update(){
+    ticking = false;
+    const y = window.scrollY || document.documentElement.scrollTop || 0;
+    btn.classList.toggle('show', y > 500);
+  }
+  window.addEventListener('scroll', ()=>{ if(!ticking){ ticking = true; requestAnimationFrame(update); } }, { passive:true });
+  btn.addEventListener('click', ()=> window.scrollTo({ top:0, behavior:'smooth' }));
+  update();
+})();
 
 // ============ PROFIL BO'LIMI (ma'lumot, rejim, chiqish) ============
 function paintThemeButtons(){
