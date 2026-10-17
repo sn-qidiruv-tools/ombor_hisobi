@@ -42,7 +42,7 @@
   --header-grad:linear-gradient(120deg,#0a2a63,#0e3f8f 55%,#1556b8);
   --pill-blue-bg:#e7efff; --pill-blue-fg:#0a4a9e;
   --pill-red-bg:#fdeaee; --pill-red-fg:#e11d48;
-  --nav-bg:rgba(255,255,255,.92); --toast-fg:#0a4a9e;
+  --nav-bg:rgba(255,255,255,.98); --toast-fg:#0a4a9e;
   --expired-bg:#fde2e2; --soft-violet:#e3ebfa;
   --active-bg:rgba(10,74,158,.10); --active-fg:#0a4a9e;
   /* Tugma foni (oq matn bilan o'qiladigan to'q ko'k) */
@@ -63,7 +63,7 @@ html[data-theme="dark"]{
   --icon-d-bg:rgba(148,163,184,.16); --icon-d-fg:#cbd5e1;
   --pill-blue-bg:rgba(77,141,255,.16); --pill-blue-fg:#8db8ff;
   --pill-red-bg:rgba(251,113,133,.14); --pill-red-fg:#fb7185;
-  --nav-bg:rgba(22,29,48,.92); --toast-fg:#8db8ff;
+  --nav-bg:rgba(22,29,48,.98); --toast-fg:#8db8ff;
   --expired-bg:rgba(251,113,133,.18); --soft-violet:rgba(143,168,255,.16);
   --active-bg:rgba(77,141,255,.16); --active-fg:#8db8ff;
   --btn-a:#2459c9; --btn-b:#3b76e0;
@@ -332,7 +332,7 @@ html[lang="ru"] .pill-btn,html[lang="en"] .pill-btn{white-space:normal;line-heig
 /* ===== PASTKI NAVIGATSIYA ===== */
 .bottom-nav{
   display:flex;position:fixed;bottom:0;left:0;right:0;z-index:30;
-  background:var(--nav-bg);backdrop-filter:blur(18px);border-top:1px solid var(--border);
+  background:var(--nav-bg);border-top:1px solid var(--border);
   padding:4px 6px calc(4px + env(safe-area-inset-bottom));gap:2px;
   width:100%;max-width:var(--app-max-width);margin:0 auto;overflow-x:auto;
 }
@@ -351,8 +351,8 @@ html[lang="ru"] .pill-btn,html[lang="en"] .pill-btn{white-space:normal;line-heig
   min-width:16px;height:15px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;
 }
 
-.overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:.2s;z-index:50}
-.overlay.show{opacity:1;pointer-events:auto}
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:flex-end;justify-content:center;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s, visibility .2s;z-index:50}
+.overlay.show{opacity:1;visibility:visible;pointer-events:auto}
 .modal{background:var(--panel);border:1px solid var(--border);border-radius:22px 22px 0 0;width:100%;max-width:var(--app-max-width);padding:22px;max-height:90vh;overflow:auto}
 .modal h2{margin:0 0 4px;font-size:18px;font-weight:700}
 .modal-sub{color:var(--text-dim);font-size:12.5px;margin:0 0 18px}
@@ -391,7 +391,7 @@ html[lang="ru"] .pill-btn,html[lang="en"] .pill-btn{white-space:normal;line-heig
 .bg-progress-spinner{width:15px;height:15px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--cyan);animation:spin .7s linear infinite;flex-shrink:0}
 
 .toast-wrap{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:100;display:flex;flex-direction:column;gap:8px;width:calc(100% - 28px);max-width:calc(var(--app-max-width) - 28px)}
-.toast{padding:12px 16px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 10px 26px rgba(20,30,60,.14);animation:toastIn .2s ease;backdrop-filter:blur(14px)}
+.toast{padding:12px 16px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 10px 26px rgba(20,30,60,.14);animation:toastIn .2s ease}
 .toast.success{background:var(--toast-ok-bg);color:var(--toast-fg);border:1px solid rgba(79,141,253,.35)}
 .toast.error{background:var(--toast-err-bg);color:var(--danger);border:1px solid rgba(251,113,133,.32)}
 @keyframes toastIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
