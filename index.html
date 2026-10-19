@@ -1364,10 +1364,17 @@ window.addEventListener('online', ()=> backgroundRefresh());
 document.getElementById('offlineRetry').addEventListener('click', ()=> backgroundRefresh(true));
 setInterval(()=>{ if(offlineLock.classList.contains('show')) backgroundRefresh(); }, 4000);
 
+// Yangilash tugmasi: ma'lumot yuklanayotganda (qo'lda ham, fonda ham) aylanadi, tugagach to'xtaydi
+let spinCount = 0, manualBusy = false;
+function spinStart(){ spinCount++; document.querySelectorAll('[data-refresh]').forEach(b=>b.classList.add('spinning')); }
+function spinEnd(){ spinCount = Math.max(0, spinCount - 1); if(spinCount === 0) document.querySelectorAll('[data-refresh]').forEach(b=>b.classList.remove('spinning')); }
+
 let bgBusy = false;
 async function backgroundRefresh(force){
   if(bgBusy || !currentUser) return;
   bgBusy = true;
+  spinStart();
+  const bgT0 = Date.now();
   try{
     if(navigator.onLine === false){ showOfflineLock(); return; }
     const ok = await loadAll(true);
@@ -1379,7 +1386,10 @@ async function backgroundRefresh(force){
       return;
     }
     if(dataChanged){ renderActive(); updateStats(); }
-  } finally { bgBusy = false; }
+  } finally {
+    bgBusy = false;
+    setTimeout(spinEnd, Math.max(0, 700 - (Date.now() - bgT0)));
+  }
 }
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') backgroundRefresh(); });
 
@@ -1587,9 +1597,9 @@ function enterApp(){
 }
 
 async function refreshData(){
-  const btns = document.querySelectorAll('[data-refresh]');
-  if(btns[0] && btns[0].classList.contains('spinning')) return;
-  btns.forEach(b=>b.classList.add('spinning'));
+  if(manualBusy) return;
+  manualBusy = true;
+  spinStart();
   const t0 = Date.now();
   try{
     const ok = await loadAll();
@@ -1601,7 +1611,7 @@ async function refreshData(){
     updateStats();
     if(ok) toast('Yangilandi', 'success');
   } finally {
-    setTimeout(()=> btns.forEach(b=>b.classList.remove('spinning')), Math.max(0, 700 - (Date.now() - t0)));
+    setTimeout(()=>{ spinEnd(); manualBusy = false; }, Math.max(0, 700 - (Date.now() - t0)));
   }
 }
 document.querySelectorAll('[data-refresh]').forEach(b=>b.addEventListener('click', refreshData));
