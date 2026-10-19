@@ -445,6 +445,11 @@ html[lang="ru"] .pill-btn,html[lang="en"] .pill-btn{white-space:normal;line-heig
 .cal-day.today{border-color:var(--border-hi)}
 .cal-day.sel{background:linear-gradient(135deg,var(--btn-a),var(--btn-b));color:#fff}
 .cal-empty{aspect-ratio:1}
+.offline-lock{position:fixed;inset:0;z-index:300;background:var(--bg);display:none;align-items:center;justify-content:center;padding:24px;text-align:center}
+.offline-lock.show{display:flex}
+.offline-card{max-width:320px;width:100%}
+.offline-card h2{margin:0 0 8px;font-size:20px}
+.offline-card p{margin:0 0 20px;font-size:14px;color:var(--text-dim);line-height:1.5}
 .page-bar-title{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;color:var(--text)}
 .lang-sel{background:var(--surface);color:var(--text);border:1px solid var(--border-hi);border-radius:10px;padding:6px 8px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;margin-right:8px}
 .user-actions{display:flex;align-items:center}
@@ -1040,6 +1045,15 @@ html[lang="ru"] .pill-btn,html[lang="en"] .pill-btn{white-space:normal;line-heig
   </div>
 </div>
 
+<div class="offline-lock" id="offlineLock">
+  <div class="offline-card">
+    <div class="confirm-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2l20 20"/><path d="M8.5 16.4a5 5 0 0 1 7 0"/><path d="M5 12.9a10 10 0 0 1 5.2-2.7"/><path d="M19 12.9a10 10 0 0 0-2.6-1.9"/><path d="M2 8.8a15 15 0 0 1 4.2-2.5"/><path d="M22 8.8a15 15 0 0 0-9.5-3.7"/><path d="M12 20h.01"/></svg></div>
+    <h2>Internet aloqasi yo'q</h2>
+    <p>Saytdan foydalanish uchun internetga ulaning. Aloqa tiklanishi bilan sayt o'zi davom etadi.</p>
+    <button class="btn" id="offlineRetry" type="button">Qayta urinish</button>
+  </div>
+</div>
+
 <div class="overlay" id="confirmOverlay">
   <div class="modal confirm-modal">
     <div class="confirm-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></div>
@@ -1265,7 +1279,7 @@ function renderExpiredBanner(){
 }
 document.getElementById('expiredLockLogout').addEventListener('click', ()=>{
   stopSessionWatch();
-  localStorage.removeItem('sklad_user');
+  localStorage.removeItem('sklad_user'); clearSnapshot();
   location.reload();
 });
 
@@ -1307,8 +1321,56 @@ function fileToCompressedBase64(file, maxDim){
 // loadAll natijani true/false qaytaradi — muvaffaqiyatli yuklandimi yoki
 // yo'qmi, chaqiruvchi shu asosda qaror qabul qiladi (masalan initApp
 // bo'sh ekran o'rniga "qayta urinish" tugmasini ko'rsatadi).
-async function loadAll(){
+// ============ TEZ OCHILISH: OXIRGI MA'LUMOT TELEFONDA SAQLANADI ============
+// Ilova ochilganda avval saqlangan ma'lumot darhol ko'rsatiladi, yangisi
+// fonda olib kelinadi va o'zgargan bo'lsa ekran o'zi yangilanadi.
+let dataChanged = false;
+const SNAP_KEY = 'sklad_snapshot_v1';
+function dataFingerprint(){ return JSON.stringify([employees, sklad, kirim, chiqim, sorovlar, tugaganlar]); }
+function saveSnapshot(){
+  try{ localStorage.setItem(SNAP_KEY, JSON.stringify({ t:Date.now(), employees, sklad, kirim, chiqim, sorovlar, tugaganlar })); }catch(e){}
+}
+function loadSnapshot(){
   try{
+    const o = JSON.parse(localStorage.getItem(SNAP_KEY) || 'null');
+    if(!o || !Array.isArray(o.employees) || !o.employees.length) return false;
+    employees = o.employees; sklad = o.sklad || []; kirim = o.kirim || []; chiqim = o.chiqim || []; sorovlar = o.sorovlar || []; tugaganlar = o.tugaganlar || [];
+    return true;
+  }catch(e){ return false; }
+}
+function clearSnapshot(){ try{ localStorage.removeItem(SNAP_KEY); }catch(e){} }
+
+// ===== INTERNET YO'Q BO'LSA — SAYTDAN FOYDALANIB BO'LMAYDI =====
+const offlineLock = document.getElementById('offlineLock');
+function showOfflineLock(){ if(currentUser) offlineLock.classList.add('show'); }
+function hideOfflineLock(){ offlineLock.classList.remove('show'); }
+window.addEventListener('offline', showOfflineLock);
+window.addEventListener('online', ()=> backgroundRefresh());
+document.getElementById('offlineRetry').addEventListener('click', ()=> backgroundRefresh(true));
+setInterval(()=>{ if(offlineLock.classList.contains('show')) backgroundRefresh(); }, 4000);
+
+let bgBusy = false;
+async function backgroundRefresh(force){
+  if(bgBusy || !currentUser) return;
+  bgBusy = true;
+  try{
+    if(navigator.onLine === false){ showOfflineLock(); return; }
+    const ok = await loadAll(true);
+    if(!ok){ showOfflineLock(); return; }
+    if(!currentUser) return;
+    hideOfflineLock();
+    if(!syncCurrentUserWithEmployees()){
+      forceLogout("Sizning hisobingiz o'chirilgan yoki o'zgartirilgan. Administrator bilan bog'laning.");
+      return;
+    }
+    if(dataChanged){ renderActive(); updateStats(); }
+  } finally { bgBusy = false; }
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') backgroundRefresh(); });
+
+async function loadAll(silent){
+  try{
+    const before = dataFingerprint();
     const data = await fetchJson(BOOTSTRAP_URL);
     // Server kutilmagan xatolikda ham to'g'ri JSON qaytaradi, lekin
     // { success:false, error:... } ko'rinishida — bunday holatda mavjud
@@ -1319,9 +1381,11 @@ async function loadAll(){
     }
     employees = data.employees || employees;
     sklad = data.sklad || []; kirim = data.kirim || []; chiqim = data.chiqim || []; sorovlar = data.sorovlar || []; tugaganlar = data.tugaganlar || [];
+    dataChanged = dataFingerprint() !== before;
+    if(dataChanged) saveSnapshot();
     return true;
   }catch(err){
-    toast("Ma'lumotlarni yuklashda xatolik", 'error');
+    if(!silent) toast("Ma'lumotlarni yuklashda xatolik", 'error');
     return false;
   }
 }
@@ -1333,6 +1397,20 @@ async function loadAll(){
 // butunlay yo'q), foydalanuvchi bo'sh/abadiy "yuklanmoqda" holatida
 // qolib ketmasligi uchun aniq xabar va "Qayta urinish" tugmasi ko'rsatiladi.
 async function initApp(){
+  // Tez yo'l: oldin kirgan va saqlangan ma'lumot bor — kutmasdan darhol ochamiz
+  const savedEarly = localStorage.getItem('sklad_user');
+  if(savedEarly && loadSnapshot()){
+    try{ currentUser = JSON.parse(savedEarly); }catch(e){ currentUser = null; }
+    if(currentUser && syncCurrentUserWithEmployees()){
+      document.getElementById('loadingScreen').style.display = 'none';
+      if(navigator.onLine === false) showOfflineLock();
+      enterApp();
+      startSessionWatch();
+      backgroundRefresh();
+      return;
+    }
+    currentUser = null;
+  }
   // TEZLASHTIRISH: avval ikkita alohida so'rov (bootstrap + employees) yuborilardi —
   // har birining o'z "sovuq boshlanish" kechikishi bo'lardi. Endi employees ham
   // bootstrap javobi ichida keladi — bitta so'rov, tezroq yuklanish.
@@ -1398,7 +1476,7 @@ function syncCurrentUserWithEmployees(){
 // uchun. Oddiy "Chiqish" tugmasidan farqi: sabab ko'rsatuvchi xabar chiqadi.
 function forceLogout(message){
   stopSessionWatch();
-  localStorage.removeItem('sklad_user');
+  localStorage.removeItem('sklad_user'); clearSnapshot();
   currentUser = null;
   document.getElementById('appScreen').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
@@ -1418,17 +1496,9 @@ function forceLogout(message){
 let sessionWatchIntervalId = null;
 function startSessionWatch(){
   stopSessionWatch();
-  sessionWatchIntervalId = setInterval(async ()=>{
-    if(!currentUser) return;
-    const ok = await loadAll();
-    if(!ok) return; // tarmoq xatosi — sessiyani bekor qilmaymiz, keyingi urinishda tekshiramiz
-    if(!syncCurrentUserWithEmployees()){
-      forceLogout("Sizning hisobingiz o'chirilgan yoki o'zgartirilgan. Administrator bilan bog'laning.");
-      return;
-    }
-    renderActive();
-    updateStats();
-  }, 45000);
+  sessionWatchIntervalId = setInterval(()=>{
+    if(document.visibilityState === 'visible') backgroundRefresh();
+  }, 30000);
 }
 function stopSessionWatch(){
   if(sessionWatchIntervalId != null){ clearInterval(sessionWatchIntervalId); sessionWatchIntervalId = null; }
@@ -1468,7 +1538,7 @@ async function doLogin(){
 
 document.getElementById('logoutBtn').addEventListener('click', ()=>{
   stopSessionWatch();
-  localStorage.removeItem('sklad_user');
+  localStorage.removeItem('sklad_user'); clearSnapshot();
   location.reload();
 });
 
@@ -3090,7 +3160,7 @@ scanOverlay.addEventListener('click', e=>{ if(e.target === scanOverlay) closeSca
 });
 
 // ============ TIL: UZ / RU / EN ============
-const I18N = {"Kirish":{"ru":"Войти","en":"Log in"},"Chiqish":{"ru":"Выход","en":"Log out"},"Profildan chiqish":{"ru":"Выйти из профиля","en":"Log out of profile"},"Login":{"ru":"Логин","en":"Login"},"Parol":{"ru":"Пароль","en":"Password"},"Parolni ko'rsatish":{"ru":"Показать пароль","en":"Show password"},"Davom etish uchun tizimga kiring":{"ru":"Войдите в систему, чтобы продолжить","en":"Sign in to continue"},"Sklad boshqaruvi":{"ru":"Управление складом","en":"Warehouse management"},"Sklad · Boshqaruv":{"ru":"Склад · Управление","en":"Warehouse · Management"},"© 2026 Uztelecom · Sklad boshqaruvi":{"ru":"© 2026 Uztelecom · Управление складом","en":"© 2026 Uztelecom · Warehouse management"},"Xush kelibsiz,":{"ru":"Добро пожаловать,","en":"Welcome,"},"Sklad":{"ru":"Склад","en":"Warehouse"},"Mening":{"ru":"Мои","en":"Mine"},"Tarix":{"ru":"История","en":"History"},"Xabarlar":{"ru":"Сообщения","en":"Messages"},"Profil":{"ru":"Профиль","en":"Profile"},"Skladda":{"ru":"На складе","en":"In stock"},"Mening olganlarim":{"ru":"Мои полученные","en":"My items"},"O'rnatilgan":{"ru":"Установлено","en":"Installed"},"Yangilash":{"ru":"Обновить","en":"Refresh"},"Yangilandi":{"ru":"Обновлено","en":"Updated"},"Filter":{"ru":"Фильтр","en":"Filter"},"Qo'llash":{"ru":"Применить","en":"Apply"},"Tozalash":{"ru":"Очистить","en":"Clear"},"Tayyor":{"ru":"Готово","en":"Done"},"Barchasi":{"ru":"Все","en":"All"},"Barcha markalar":{"ru":"Все марки","en":"All brands"},"Xohlaganlarini belgilang":{"ru":"Отметьте нужные","en":"Select any you like"},"Marka":{"ru":"Марка","en":"Brand"},"Tuman":{"ru":"Район","en":"District"},"Xodim":{"ru":"Сотрудник","en":"Employee"},"Holat":{"ru":"Статус","en":"Status"},"Ism":{"ru":"Имя","en":"Name"},"Lavozim":{"ru":"Должность","en":"Position"},"Buxoro":{"ru":"Бухара","en":"Bukhara"},"Kogon":{"ru":"Каган","en":"Kogon"},"Ko'rinish":{"ru":"Внешний вид","en":"Appearance"},"Kunduzgi":{"ru":"Светлая","en":"Light"},"Qorong'i":{"ru":"Тёмная","en":"Dark"},"Bekor qilish":{"ru":"Отмена","en":"Cancel"},"Yopish":{"ru":"Закрыть","en":"Close"},"Ha":{"ru":"Да","en":"Yes"},"Yo'q":{"ru":"Нет","en":"No"},"Tasdiqlang":{"ru":"Подтвердите","en":"Confirm"},"Tasdiqlash":{"ru":"Подтвердить","en":"Confirm"},"Qo'shish":{"ru":"Добавить","en":"Add"},"O'chirish":{"ru":"Удалить","en":"Delete"},"Tanlanganlarni o'chirish":{"ru":"Удалить выбранные","en":"Delete selected"},"Hammasini belgilash":{"ru":"Выбрать все","en":"Select all"},"Tepaga":{"ru":"Наверх","en":"To top"},"Tepaga qaytish":{"ru":"Вернуться наверх","en":"Back to top"},"Qaytarish":{"ru":"Вернуть","en":"Return"},"Omborga qaytarish":{"ru":"Вернуть на склад","en":"Return to warehouse"},"Faollashtirish":{"ru":"Активировать","en":"Activate"},"Qurilmani faollashtirish":{"ru":"Активировать устройство","en":"Activate device"},"Qurilmani olish":{"ru":"Получить устройство","en":"Take device"},"Qurilma o'rnatildi":{"ru":"Устройство установлено","en":"Device installed"},"Yangi qurilma qo'shish":{"ru":"Добавить новое устройство","en":"Add new device"},"Skladga yangi qurilma":{"ru":"Новое устройство на склад","en":"New device to warehouse"},"Ombor ro'yxatiga qo'lda qo'shish":{"ru":"Добавить в список склада вручную","en":"Add to warehouse list manually"},"Omborda mavjud qurilmalar":{"ru":"Устройства на складе","en":"Devices in stock"},"Siz olgan, hali o'rnatilmagan qurilmalar":{"ru":"Полученные, но не установленные устройства","en":"Devices you took that are not installed yet"},"O'rnatilgan qurilmalar tarixi":{"ru":"История установленных устройств","en":"Installed devices history"},"O'rnatishni bekor qilish":{"ru":"Отменить установку","en":"Cancel installation"},"Muddati tugagan":{"ru":"Срок истёк","en":"Expired"},"Sizda muddati o'tgan qurilma bor":{"ru":"У вас есть устройство с истёкшим сроком","en":"You have an expired device"},"Muddat va qaytarish so'rovlari":{"ru":"Запросы срока и возврата","en":"Deadline and return requests"},"Qo'shimcha muddat":{"ru":"Доп. срок","en":"Extra time"},"Qo'shimcha muddat so'rash":{"ru":"Запросить доп. срок","en":"Request extra time"},"Yangi muddat":{"ru":"Новый срок","en":"New deadline"},"Muddatni tanlang":{"ru":"Выберите срок","en":"Select a deadline"},"Muddatni tanlang (max 24 soat)":{"ru":"Выберите срок (макс. 24 часа)","en":"Select a deadline (max 24 hours)"},"So'rov yuborish":{"ru":"Отправить запрос","en":"Send request"},"Yo'naltirish":{"ru":"Перенаправить","en":"Forward"},"Boshqa xodimga yo'naltirish":{"ru":"Перенаправить другому сотруднику","en":"Forward to another employee"},"Xodimni tanlang":{"ru":"Выберите сотрудника","en":"Select an employee"},"Sabab":{"ru":"Причина","en":"Reason"},"Sababni kiriting":{"ru":"Укажите причину","en":"Enter a reason"},"Manzil":{"ru":"Адрес","en":"Address"},"Manzilni kiriting":{"ru":"Введите адрес","en":"Enter the address"},"Joylashuv":{"ru":"Местоположение","en":"Location"},"Joylashuvni belgilash":{"ru":"Отметить местоположение","en":"Set location"},"Joylashuvni tanlang":{"ru":"Выберите местоположение","en":"Select location"},"Joylashuvni tasdiqlash":{"ru":"Подтвердить местоположение","en":"Confirm location"},"Joylashuvni xaritadan belgilang":{"ru":"Отметьте местоположение на карте","en":"Mark the location on the map"},"Mening joylashuvim":{"ru":"Моё местоположение","en":"My location"},"Aniqlanmoqda...":{"ru":"Определяется...","en":"Detecting..."},"Qurilmalar xaritasi":{"ru":"Карта устройств","en":"Devices map"},"Barcha qurilmalarni xaritada ko'rish":{"ru":"Показать все устройства на карте","en":"Show all devices on map"},"Shtrixkodni skanerlash":{"ru":"Сканировать штрихкод","en":"Scan barcode"},"Shtrixkodni skanerlang":{"ru":"Сканируйте штрихкод","en":"Scan the barcode"},"Yorliqdagi bitta shtrixkodni ramka ichiga oling":{"ru":"Наведите рамку на штрихкод на этикетке","en":"Place one barcode from the label inside the frame"},"S/N (seriya raqami)":{"ru":"S/N (серийный номер)","en":"S/N (serial number)"},"S/N bo'yicha qidirish...":{"ru":"Поиск по S/N...","en":"Search by S/N..."},"Seriya raqamini kiriting":{"ru":"Введите серийный номер","en":"Enter the serial number"},"OLT nomi":{"ru":"Название OLT","en":"OLT name"},"Port raqami":{"ru":"Номер порта","en":"Port number"},"Uy raqami":{"ru":"Номер дома","en":"House number"},"Ko'cha nomi":{"ru":"Название улицы","en":"Street name"},"Majburiy":{"ru":"Обязательно","en":"Required"},"Ixtiyoriy":{"ru":"Необязательно","en":"Optional"},"1-rasm":{"ru":"Фото 1","en":"Photo 1"},"2-rasm":{"ru":"Фото 2","en":"Photo 2"},"3-rasm":{"ru":"Фото 3","en":"Photo 3"},"4-rasm":{"ru":"Фото 4","en":"Photo 4"},"Rasmlar (2 ta majburiy, 2 ta ixtiyoriy)":{"ru":"Фото (2 обязательных, 2 необязательных)","en":"Photos (2 required, 2 optional)"},"Barcha maydonlarni to'ldiring":{"ru":"Заполните все поля","en":"Fill in all fields"},"Kamida 2 ta majburiy rasmni yuklang":{"ru":"Загрузите минимум 2 обязательных фото","en":"Upload at least 2 required photos"},"Yuborilmoqda...":{"ru":"Отправка...","en":"Sending..."},"Ma'lumotlar yuklanmoqda...":{"ru":"Загрузка данных...","en":"Loading data..."},"Ma'lumotlarni yuklashda xatolik":{"ru":"Ошибка загрузки данных","en":"Error loading data"},"Brauzeringiz joylashuvni aniqlay olmaydi":{"ru":"Браузер не может определить местоположение","en":"Your browser cannot detect location"},"Joylashuvni aniqlab bo'lmadi — GPS ruxsatini tekshiring":{"ru":"Не удалось определить местоположение — проверьте доступ к GPS","en":"Could not detect location — check GPS permission"},"Marka, tuman va holat bo'yicha filterlash":{"ru":"Фильтр по марке, району и статусу","en":"Filter by brand, district and status"},"Tuman, xodim va marka bo'yicha filterlash":{"ru":"Фильтр по району, сотруднику и марке","en":"Filter by district, employee and brand"},"Marka va tuman bo'yicha filterlash":{"ru":"Фильтр по марке и району","en":"Filter by brand and district"},"1 kun":{"ru":"1 день","en":"1 day"},"2 kun":{"ru":"2 дня","en":"2 days"},"3 kun":{"ru":"3 дня","en":"3 days"},"6 soat":{"ru":"6 часов","en":"6 hours"},"12 soat":{"ru":"12 часов","en":"12 hours"},"24 soat":{"ru":"24 часа","en":"24 hours"},"48 soat":{"ru":"48 часов","en":"48 hours"},"72 soat":{"ru":"72 часа","en":"72 hours"},"Qabul qilingan":{"ru":"Принято","en":"Accepted"},"Port":{"ru":"Порт","en":"Port"},"OLT":{"ru":"OLT","en":"OLT"},"Masofa":{"ru":"Расстояние","en":"Distance"},"Masofa (1/4 dan, metrda)":{"ru":"Расстояние (от 1/4, в метрах)","en":"Distance (from 1/4, in meters)"},"Til":{"ru":"Язык","en":"Language"},"Aniq joy kutilmoqda...":{"ru":"Ожидание точного местоположения...","en":"Waiting for exact location..."},"GPS orqali aniqlanmoqda...":{"ru":"Определение по GPS...","en":"Detecting via GPS..."},"Google Maps'da ochish":{"ru":"Открыть в Google Maps","en":"Open in Google Maps"},"Hozircha so'rovlar yo'q":{"ru":"Запросов пока нет","en":"No requests yet"},"Markalar topilmadi":{"ru":"Марки не найдены","en":"No brands found"},"Tekshirilmoqda...":{"ru":"Проверка...","en":"Checking..."},"Xarita yuklanmoqda...":{"ru":"Загрузка карты...","en":"Loading map..."},"Bu qurilma boshqa tumanga tegishli":{"ru":"Это устройство относится к другому району","en":"This device belongs to another district"},"Ma'lumotlarni yuklab bo'lmadi.":{"ru":"Не удалось загрузить данные.","en":"Could not load data."},"Internetni tekshirib, qayta urining.":{"ru":"Проверьте интернет и повторите попытку.","en":"Check your internet and try again."},"Barcha qabul qilingan qurilmalar (kimda turgani bilan)":{"ru":"Все принятые устройства (с указанием, у кого)","en":"All accepted devices (and who holds them)"},"Oldim":{"ru":"Взял","en":"Take"},"O'rnatish":{"ru":"Установить","en":"Install"},"Rad etish":{"ru":"Отклонить","en":"Reject"},"Ruxsat berish":{"ru":"Разрешить","en":"Allow"},"Xaritadan ko'rish":{"ru":"Показать на карте","en":"View on map"},"Faol":{"ru":"Активно","en":"Active"},"soat":{"ru":"ч","en":"h"},"So'nggi muddat so'rovingiz rad etildi":{"ru":"Ваш последний запрос срока отклонён","en":"Your last deadline request was rejected"},"So'nggi qaytarish so'rovingiz rad etildi":{"ru":"Ваш последний запрос возврата отклонён","en":"Your last return request was rejected"},"Maksimal 1 kun (24 soat) gacha so'rashingiz mumkin. So'rov adminga yuboriladi.":{"ru":"Можно запросить максимум 1 день (24 часа). Запрос отправляется администратору.","en":"You can request up to 1 day (24 hours). The request is sent to the admin."},"Nima uchun qaytarayotganingizni yozing":{"ru":"Укажите, почему возвращаете","en":"Write why you are returning it"},"Manzil va muddatni kiriting":{"ru":"Укажите адрес и срок","en":"Enter the address and deadline"},"O'rnatish ma'lumotlarini va rasmlarni to'ldiring":{"ru":"Заполните данные установки и добавьте фото","en":"Fill in the installation details and photos"},"Muddati tugagan qurilmaga yangi muddat belgilang — qurilma xodimning qo'lida qoladi":{"ru":"Задайте новый срок для устройства с истёкшим сроком — оно остаётся у сотрудника","en":"Set a new deadline for the expired device — it stays with the employee"},"Qurilma o'rnatgan xodimning \"Mening\" bo'limiga qaytadi, Telegram xabari ham yangilanadi.":{"ru":"Устройство вернётся в раздел «Мои» установившего сотрудника, сообщение в Telegram тоже обновится.","en":"The device returns to the installer's \"Mine\" section; the Telegram message is updated too."},"Qurilma tanlangan xodimga o'tkaziladi, Telegram xabari ham yangilanadi":{"ru":"Устройство будет передано выбранному сотруднику, сообщение в Telegram тоже обновится","en":"The device is transferred to the selected employee; the Telegram message is updated too"},"Xarita GPS orqali taxminiy joyni ko'rsatadi — belgini surib yoki xaritaga bosib aniq nuqtani ko'rsating.":{"ru":"Карта показывает примерное место по GPS — сдвиньте маркер или нажмите на карту, чтобы указать точку.","en":"The map shows an approximate GPS spot — drag the marker or tap the map to set the exact point."},"Kamera faqat HTTPS (xavfsiz) sahifada ishlaydi. S/N ni qo'lda yozib qidiring.":{"ru":"Камера работает только на HTTPS-странице. Введите S/N вручную.","en":"The camera works only on HTTPS pages. Type the S/N manually."},"Kameraga ruxsat berilmadi. Brauzer sozlamalaridan ruxsat bering yoki S/N ni qo'lda yozing.":{"ru":"Нет доступа к камере. Разрешите в настройках браузера или введите S/N вручную.","en":"Camera access denied. Allow it in browser settings or type the S/N manually."},"Kamerani yoki skanerni ochib bo'lmadi. S/N ni qo'lda yozib qidiring.":{"ru":"Не удалось открыть камеру. Введите S/N вручную.","en":"Could not open the camera. Type the S/N manually."},"Ilovadan foydalanish uchun administrator qurilmani faollashtirishi yoki omborga qaytarishi kerak. Admin bilan bog'laning.":{"ru":"Чтобы пользоваться приложением, администратор должен активировать устройство или вернуть его на склад. Свяжитесь с админом.","en":"To use the app, the admin must activate the device or return it to the warehouse. Contact the admin."},"Sana":{"ru":"Дата","en":"Date"}};
+const I18N = {"Kirish":{"ru":"Войти","en":"Log in"},"Chiqish":{"ru":"Выход","en":"Log out"},"Profildan chiqish":{"ru":"Выйти из профиля","en":"Log out of profile"},"Login":{"ru":"Логин","en":"Login"},"Parol":{"ru":"Пароль","en":"Password"},"Parolni ko'rsatish":{"ru":"Показать пароль","en":"Show password"},"Davom etish uchun tizimga kiring":{"ru":"Войдите в систему, чтобы продолжить","en":"Sign in to continue"},"Sklad boshqaruvi":{"ru":"Управление складом","en":"Warehouse management"},"Sklad · Boshqaruv":{"ru":"Склад · Управление","en":"Warehouse · Management"},"© 2026 Uztelecom · Sklad boshqaruvi":{"ru":"© 2026 Uztelecom · Управление складом","en":"© 2026 Uztelecom · Warehouse management"},"Xush kelibsiz,":{"ru":"Добро пожаловать,","en":"Welcome,"},"Sklad":{"ru":"Склад","en":"Warehouse"},"Mening":{"ru":"Мои","en":"Mine"},"Tarix":{"ru":"История","en":"History"},"Xabarlar":{"ru":"Сообщения","en":"Messages"},"Profil":{"ru":"Профиль","en":"Profile"},"Skladda":{"ru":"На складе","en":"In stock"},"Mening olganlarim":{"ru":"Мои полученные","en":"My items"},"O'rnatilgan":{"ru":"Установлено","en":"Installed"},"Yangilash":{"ru":"Обновить","en":"Refresh"},"Yangilandi":{"ru":"Обновлено","en":"Updated"},"Filter":{"ru":"Фильтр","en":"Filter"},"Qo'llash":{"ru":"Применить","en":"Apply"},"Tozalash":{"ru":"Очистить","en":"Clear"},"Tayyor":{"ru":"Готово","en":"Done"},"Barchasi":{"ru":"Все","en":"All"},"Barcha markalar":{"ru":"Все марки","en":"All brands"},"Xohlaganlarini belgilang":{"ru":"Отметьте нужные","en":"Select any you like"},"Marka":{"ru":"Марка","en":"Brand"},"Tuman":{"ru":"Район","en":"District"},"Xodim":{"ru":"Сотрудник","en":"Employee"},"Holat":{"ru":"Статус","en":"Status"},"Ism":{"ru":"Имя","en":"Name"},"Lavozim":{"ru":"Должность","en":"Position"},"Buxoro":{"ru":"Бухара","en":"Bukhara"},"Kogon":{"ru":"Каган","en":"Kogon"},"Ko'rinish":{"ru":"Внешний вид","en":"Appearance"},"Kunduzgi":{"ru":"Светлая","en":"Light"},"Qorong'i":{"ru":"Тёмная","en":"Dark"},"Bekor qilish":{"ru":"Отмена","en":"Cancel"},"Yopish":{"ru":"Закрыть","en":"Close"},"Ha":{"ru":"Да","en":"Yes"},"Yo'q":{"ru":"Нет","en":"No"},"Tasdiqlang":{"ru":"Подтвердите","en":"Confirm"},"Tasdiqlash":{"ru":"Подтвердить","en":"Confirm"},"Qo'shish":{"ru":"Добавить","en":"Add"},"O'chirish":{"ru":"Удалить","en":"Delete"},"Tanlanganlarni o'chirish":{"ru":"Удалить выбранные","en":"Delete selected"},"Hammasini belgilash":{"ru":"Выбрать все","en":"Select all"},"Tepaga":{"ru":"Наверх","en":"To top"},"Tepaga qaytish":{"ru":"Вернуться наверх","en":"Back to top"},"Qaytarish":{"ru":"Вернуть","en":"Return"},"Omborga qaytarish":{"ru":"Вернуть на склад","en":"Return to warehouse"},"Faollashtirish":{"ru":"Активировать","en":"Activate"},"Qurilmani faollashtirish":{"ru":"Активировать устройство","en":"Activate device"},"Qurilmani olish":{"ru":"Получить устройство","en":"Take device"},"Qurilma o'rnatildi":{"ru":"Устройство установлено","en":"Device installed"},"Yangi qurilma qo'shish":{"ru":"Добавить новое устройство","en":"Add new device"},"Skladga yangi qurilma":{"ru":"Новое устройство на склад","en":"New device to warehouse"},"Ombor ro'yxatiga qo'lda qo'shish":{"ru":"Добавить в список склада вручную","en":"Add to warehouse list manually"},"Omborda mavjud qurilmalar":{"ru":"Устройства на складе","en":"Devices in stock"},"Siz olgan, hali o'rnatilmagan qurilmalar":{"ru":"Полученные, но не установленные устройства","en":"Devices you took that are not installed yet"},"O'rnatilgan qurilmalar tarixi":{"ru":"История установленных устройств","en":"Installed devices history"},"O'rnatishni bekor qilish":{"ru":"Отменить установку","en":"Cancel installation"},"Muddati tugagan":{"ru":"Срок истёк","en":"Expired"},"Sizda muddati o'tgan qurilma bor":{"ru":"У вас есть устройство с истёкшим сроком","en":"You have an expired device"},"Muddat va qaytarish so'rovlari":{"ru":"Запросы срока и возврата","en":"Deadline and return requests"},"Qo'shimcha muddat":{"ru":"Доп. срок","en":"Extra time"},"Qo'shimcha muddat so'rash":{"ru":"Запросить доп. срок","en":"Request extra time"},"Yangi muddat":{"ru":"Новый срок","en":"New deadline"},"Muddatni tanlang":{"ru":"Выберите срок","en":"Select a deadline"},"Muddatni tanlang (max 24 soat)":{"ru":"Выберите срок (макс. 24 часа)","en":"Select a deadline (max 24 hours)"},"So'rov yuborish":{"ru":"Отправить запрос","en":"Send request"},"Yo'naltirish":{"ru":"Перенаправить","en":"Forward"},"Boshqa xodimga yo'naltirish":{"ru":"Перенаправить другому сотруднику","en":"Forward to another employee"},"Xodimni tanlang":{"ru":"Выберите сотрудника","en":"Select an employee"},"Sabab":{"ru":"Причина","en":"Reason"},"Sababni kiriting":{"ru":"Укажите причину","en":"Enter a reason"},"Manzil":{"ru":"Адрес","en":"Address"},"Manzilni kiriting":{"ru":"Введите адрес","en":"Enter the address"},"Joylashuv":{"ru":"Местоположение","en":"Location"},"Joylashuvni belgilash":{"ru":"Отметить местоположение","en":"Set location"},"Joylashuvni tanlang":{"ru":"Выберите местоположение","en":"Select location"},"Joylashuvni tasdiqlash":{"ru":"Подтвердить местоположение","en":"Confirm location"},"Joylashuvni xaritadan belgilang":{"ru":"Отметьте местоположение на карте","en":"Mark the location on the map"},"Mening joylashuvim":{"ru":"Моё местоположение","en":"My location"},"Aniqlanmoqda...":{"ru":"Определяется...","en":"Detecting..."},"Qurilmalar xaritasi":{"ru":"Карта устройств","en":"Devices map"},"Barcha qurilmalarni xaritada ko'rish":{"ru":"Показать все устройства на карте","en":"Show all devices on map"},"Shtrixkodni skanerlash":{"ru":"Сканировать штрихкод","en":"Scan barcode"},"Shtrixkodni skanerlang":{"ru":"Сканируйте штрихкод","en":"Scan the barcode"},"Yorliqdagi bitta shtrixkodni ramka ichiga oling":{"ru":"Наведите рамку на штрихкод на этикетке","en":"Place one barcode from the label inside the frame"},"S/N (seriya raqami)":{"ru":"S/N (серийный номер)","en":"S/N (serial number)"},"S/N bo'yicha qidirish...":{"ru":"Поиск по S/N...","en":"Search by S/N..."},"Seriya raqamini kiriting":{"ru":"Введите серийный номер","en":"Enter the serial number"},"OLT nomi":{"ru":"Название OLT","en":"OLT name"},"Port raqami":{"ru":"Номер порта","en":"Port number"},"Uy raqami":{"ru":"Номер дома","en":"House number"},"Ko'cha nomi":{"ru":"Название улицы","en":"Street name"},"Majburiy":{"ru":"Обязательно","en":"Required"},"Ixtiyoriy":{"ru":"Необязательно","en":"Optional"},"1-rasm":{"ru":"Фото 1","en":"Photo 1"},"2-rasm":{"ru":"Фото 2","en":"Photo 2"},"3-rasm":{"ru":"Фото 3","en":"Photo 3"},"4-rasm":{"ru":"Фото 4","en":"Photo 4"},"Rasmlar (2 ta majburiy, 2 ta ixtiyoriy)":{"ru":"Фото (2 обязательных, 2 необязательных)","en":"Photos (2 required, 2 optional)"},"Barcha maydonlarni to'ldiring":{"ru":"Заполните все поля","en":"Fill in all fields"},"Kamida 2 ta majburiy rasmni yuklang":{"ru":"Загрузите минимум 2 обязательных фото","en":"Upload at least 2 required photos"},"Yuborilmoqda...":{"ru":"Отправка...","en":"Sending..."},"Ma'lumotlar yuklanmoqda...":{"ru":"Загрузка данных...","en":"Loading data..."},"Ma'lumotlarni yuklashda xatolik":{"ru":"Ошибка загрузки данных","en":"Error loading data"},"Brauzeringiz joylashuvni aniqlay olmaydi":{"ru":"Браузер не может определить местоположение","en":"Your browser cannot detect location"},"Joylashuvni aniqlab bo'lmadi — GPS ruxsatini tekshiring":{"ru":"Не удалось определить местоположение — проверьте доступ к GPS","en":"Could not detect location — check GPS permission"},"Marka, tuman va holat bo'yicha filterlash":{"ru":"Фильтр по марке, району и статусу","en":"Filter by brand, district and status"},"Tuman, xodim va marka bo'yicha filterlash":{"ru":"Фильтр по району, сотруднику и марке","en":"Filter by district, employee and brand"},"Marka va tuman bo'yicha filterlash":{"ru":"Фильтр по марке и району","en":"Filter by brand and district"},"1 kun":{"ru":"1 день","en":"1 day"},"2 kun":{"ru":"2 дня","en":"2 days"},"3 kun":{"ru":"3 дня","en":"3 days"},"6 soat":{"ru":"6 часов","en":"6 hours"},"12 soat":{"ru":"12 часов","en":"12 hours"},"24 soat":{"ru":"24 часа","en":"24 hours"},"48 soat":{"ru":"48 часов","en":"48 hours"},"72 soat":{"ru":"72 часа","en":"72 hours"},"Qabul qilingan":{"ru":"Принято","en":"Accepted"},"Port":{"ru":"Порт","en":"Port"},"OLT":{"ru":"OLT","en":"OLT"},"Masofa":{"ru":"Расстояние","en":"Distance"},"Masofa (1/4 dan, metrda)":{"ru":"Расстояние (от 1/4, в метрах)","en":"Distance (from 1/4, in meters)"},"Til":{"ru":"Язык","en":"Language"},"Aniq joy kutilmoqda...":{"ru":"Ожидание точного местоположения...","en":"Waiting for exact location..."},"GPS orqali aniqlanmoqda...":{"ru":"Определение по GPS...","en":"Detecting via GPS..."},"Google Maps'da ochish":{"ru":"Открыть в Google Maps","en":"Open in Google Maps"},"Hozircha so'rovlar yo'q":{"ru":"Запросов пока нет","en":"No requests yet"},"Markalar topilmadi":{"ru":"Марки не найдены","en":"No brands found"},"Tekshirilmoqda...":{"ru":"Проверка...","en":"Checking..."},"Xarita yuklanmoqda...":{"ru":"Загрузка карты...","en":"Loading map..."},"Bu qurilma boshqa tumanga tegishli":{"ru":"Это устройство относится к другому району","en":"This device belongs to another district"},"Ma'lumotlarni yuklab bo'lmadi.":{"ru":"Не удалось загрузить данные.","en":"Could not load data."},"Internetni tekshirib, qayta urining.":{"ru":"Проверьте интернет и повторите попытку.","en":"Check your internet and try again."},"Barcha qabul qilingan qurilmalar (kimda turgani bilan)":{"ru":"Все принятые устройства (с указанием, у кого)","en":"All accepted devices (and who holds them)"},"Oldim":{"ru":"Взял","en":"Take"},"O'rnatish":{"ru":"Установить","en":"Install"},"Rad etish":{"ru":"Отклонить","en":"Reject"},"Ruxsat berish":{"ru":"Разрешить","en":"Allow"},"Xaritadan ko'rish":{"ru":"Показать на карте","en":"View on map"},"Faol":{"ru":"Активно","en":"Active"},"soat":{"ru":"ч","en":"h"},"So'nggi muddat so'rovingiz rad etildi":{"ru":"Ваш последний запрос срока отклонён","en":"Your last deadline request was rejected"},"So'nggi qaytarish so'rovingiz rad etildi":{"ru":"Ваш последний запрос возврата отклонён","en":"Your last return request was rejected"},"Maksimal 1 kun (24 soat) gacha so'rashingiz mumkin. So'rov adminga yuboriladi.":{"ru":"Можно запросить максимум 1 день (24 часа). Запрос отправляется администратору.","en":"You can request up to 1 day (24 hours). The request is sent to the admin."},"Nima uchun qaytarayotganingizni yozing":{"ru":"Укажите, почему возвращаете","en":"Write why you are returning it"},"Manzil va muddatni kiriting":{"ru":"Укажите адрес и срок","en":"Enter the address and deadline"},"O'rnatish ma'lumotlarini va rasmlarni to'ldiring":{"ru":"Заполните данные установки и добавьте фото","en":"Fill in the installation details and photos"},"Muddati tugagan qurilmaga yangi muddat belgilang — qurilma xodimning qo'lida qoladi":{"ru":"Задайте новый срок для устройства с истёкшим сроком — оно остаётся у сотрудника","en":"Set a new deadline for the expired device — it stays with the employee"},"Qurilma o'rnatgan xodimning \"Mening\" bo'limiga qaytadi, Telegram xabari ham yangilanadi.":{"ru":"Устройство вернётся в раздел «Мои» установившего сотрудника, сообщение в Telegram тоже обновится.","en":"The device returns to the installer's \"Mine\" section; the Telegram message is updated too."},"Qurilma tanlangan xodimga o'tkaziladi, Telegram xabari ham yangilanadi":{"ru":"Устройство будет передано выбранному сотруднику, сообщение в Telegram тоже обновится","en":"The device is transferred to the selected employee; the Telegram message is updated too"},"Xarita GPS orqali taxminiy joyni ko'rsatadi — belgini surib yoki xaritaga bosib aniq nuqtani ko'rsating.":{"ru":"Карта показывает примерное место по GPS — сдвиньте маркер или нажмите на карту, чтобы указать точку.","en":"The map shows an approximate GPS spot — drag the marker or tap the map to set the exact point."},"Kamera faqat HTTPS (xavfsiz) sahifada ishlaydi. S/N ni qo'lda yozib qidiring.":{"ru":"Камера работает только на HTTPS-странице. Введите S/N вручную.","en":"The camera works only on HTTPS pages. Type the S/N manually."},"Kameraga ruxsat berilmadi. Brauzer sozlamalaridan ruxsat bering yoki S/N ni qo'lda yozing.":{"ru":"Нет доступа к камере. Разрешите в настройках браузера или введите S/N вручную.","en":"Camera access denied. Allow it in browser settings or type the S/N manually."},"Kamerani yoki skanerni ochib bo'lmadi. S/N ni qo'lda yozib qidiring.":{"ru":"Не удалось открыть камеру. Введите S/N вручную.","en":"Could not open the camera. Type the S/N manually."},"Ilovadan foydalanish uchun administrator qurilmani faollashtirishi yoki omborga qaytarishi kerak. Admin bilan bog'laning.":{"ru":"Чтобы пользоваться приложением, администратор должен активировать устройство или вернуть его на склад. Свяжитесь с админом.","en":"To use the app, the admin must activate the device or return it to the warehouse. Contact the admin."},"Sana":{"ru":"Дата","en":"Date"},"Internet aloqasi yo'q":{"ru":"Нет подключения к интернету","en":"No internet connection"},"Saytdan foydalanish uchun internetga ulaning. Aloqa tiklanishi bilan sayt o'zi davom etadi.":{"ru":"Подключитесь к интернету, чтобы пользоваться сайтом. Сайт продолжит работу сам, как только связь восстановится.","en":"Connect to the internet to use the site. It will continue automatically once the connection is back."},"Qayta urinish":{"ru":"Повторить","en":"Try again"}};
 let LANG = 'uz';
 try{ LANG = localStorage.getItem('sklad_lang') || 'uz'; }catch(e){}
 if(!['uz','ru','en'].includes(LANG)) LANG = 'uz';
